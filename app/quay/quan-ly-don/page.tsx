@@ -19,7 +19,6 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
-import { OpsShell } from "@/components/sachplus/ops-shell";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
@@ -78,6 +77,7 @@ export default function StaffPage() {
   const [searchCode, setSearchCode] = useState("");
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [selectedMachine, setSelectedMachine] = useState<string | null>(null);
+  const [mobileKanbanCol, setMobileKanbanCol] = useState<string>("all");
 
   // Walk-in order modal state (Khách mang đồ trực tiếp tới tiệm)
   const [walkinModalOpen, setWalkinModalOpen] = useState(false);
@@ -316,7 +316,7 @@ export default function StaffPage() {
   }, [orders, selectedMachine]);
 
   return (
-    <OpsShell role="staff">
+    <div className="w-full min-w-0">
       {/* Topbar ca làm việc */}
       <header className="ops-topbar flex flex-wrap items-center justify-between gap-4">
         <div>
@@ -372,18 +372,53 @@ export default function StaffPage() {
               <p className="text-xs text-stone-500 mt-1">Đơn đặt mới sẽ tự động hiển thị tại đây theo thời gian thực.</p>
             </div>
           ) : (
-            <div className="kanban-board">
-              {columns.map((column, index) => {
-                const columnOrders = orders.filter((o) => getKanbanColumn(o.status) === column);
-                return (
-                  <section key={column} className="kanban-column">
-                    <div className="column-head">
-                      <div>
-                        <span>{String(index + 1).padStart(2, "0")}</span>
-                        <h2>{column}</h2>
-                      </div>
-                      <b>{columnOrders.length}</b>
-                    </div>
+            <div className="w-full min-w-0">
+              {/* Mobile Column Filter Pills (< 640px) */}
+              <div className="sm:hidden flex items-center gap-1.5 overflow-x-auto pb-2 mb-3 no-scrollbar">
+                <button
+                  type="button"
+                  onClick={() => setMobileKanbanCol("all")}
+                  className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-bold transition cursor-pointer ${
+                    mobileKanbanCol === "all"
+                      ? "bg-[#0284C7] text-white shadow-xs"
+                      : "bg-white text-stone-600 border border-stone-200"
+                  }`}
+                >
+                  Tất cả ({orders.length})
+                </button>
+                {columns.map((col) => {
+                  const count = orders.filter((o) => getKanbanColumn(o.status) === col).length;
+                  return (
+                    <button
+                      key={col}
+                      type="button"
+                      onClick={() => setMobileKanbanCol(col)}
+                      className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-bold transition cursor-pointer ${
+                        mobileKanbanCol === col
+                          ? "bg-[#0284C7] text-white shadow-xs"
+                          : "bg-white text-stone-600 border border-stone-200"
+                      }`}
+                    >
+                      {col} ({count})
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className={`kanban-board ${mobileKanbanCol !== "all" ? "!grid-cols-1" : ""}`}>
+                {columns
+                  .filter((col) => mobileKanbanCol === "all" || mobileKanbanCol === col)
+                  .map((column, index) => {
+                    const columnOrders = orders.filter((o) => getKanbanColumn(o.status) === column);
+                    return (
+                      <section key={column} className="kanban-column">
+                        <div className="column-head">
+                          <div>
+                            <span>{String(columns.indexOf(column) + 1).padStart(2, "0")}</span>
+                            <h2>{column}</h2>
+                          </div>
+                          <b>{columnOrders.length}</b>
+                        </div>
 
                     <div className="kanban-stack">
                       {columnOrders.map((order) => (
@@ -419,6 +454,7 @@ export default function StaffPage() {
                   </section>
                 );
               })}
+              </div>
             </div>
           )}
         </TabsContent>
@@ -663,6 +699,6 @@ export default function StaffPage() {
           </form>
         </DialogContent>
       </Dialog>
-    </OpsShell>
+    </div>
   );
 }

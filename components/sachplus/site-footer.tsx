@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Clock3, Coffee, MapPin, Phone, ShieldCheck, Sparkles, UserCheck, WashingMachine, Wrench } from "lucide-react";
+import { Clock3, Coffee, MapPin, Phone, ShieldCheck, UserCheck, WashingMachine, Wrench } from "lucide-react";
 
 import { Logo } from "@/components/sachplus/logo";
 

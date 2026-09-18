@@ -39,18 +39,6 @@ export function BookingDialog({ children }: { children: React.ReactNode }) {
   const [discountAmount, setDiscountAmount] = useState(0);
   const [availableVouchers, setAvailableVouchers] = useState<VoucherItem[]>([]);
 
-  useEffect(() => {
-    if (open) {
-      setAvailableVouchers(getVouchers().filter((v) => v.isActive));
-      const u = getCurrentUser();
-      if (u) {
-        if (!name) setName(u.name);
-        if (!phone) setPhone(u.phone);
-        if (!address) setAddress(u.apartment || "");
-      }
-    }
-  }, [open]);
-
   const catalog = getServiceCatalog();
   const basePrice = catalog.find((item) => item.name === service)?.price ?? 69000;
   const cafeTotal = cafeAddons
@@ -66,6 +54,50 @@ export function BookingDialog({ children }: { children: React.ReactNode }) {
     () => Math.max(0, subtotal - discountAmount),
     [subtotal, discountAmount]
   );
+
+  useEffect(() => {
+    if (open) {
+      const all = getVouchers().filter((v) => v.isActive);
+      setAvailableVouchers(all);
+      const u = getCurrentUser();
+      if (u) {
+        if (!name) setName(u.name);
+        if (!phone) setPhone(u.phone);
+        if (!address) setAddress(u.apartment || "");
+      }
+
+      // Tự động tìm và áp dụng mã ưu đãi tốt nhất cho khách hàng
+      if (!appliedVoucher) {
+        let best: VoucherItem | null = null;
+        let maxD = 0;
+        for (const v of all) {
+          const res = validateVoucher(v.code, subtotal);
+          if (res.valid && res.discountAmount > maxD) {
+            maxD = res.discountAmount;
+            best = res.voucher || v;
+          }
+        }
+        if (best && maxD > 0) {
+          setAppliedVoucher(best);
+          setDiscountAmount(maxD);
+          setVoucherInput(best.code);
+        }
+      }
+    }
+  }, [open]);
+
+  // Cập nhật lại mức giảm khi giá trị đơn thay đổi
+  useEffect(() => {
+    if (appliedVoucher) {
+      const res = validateVoucher(appliedVoucher.code, subtotal);
+      if (res.valid) {
+        setDiscountAmount(res.discountAmount);
+      } else {
+        setAppliedVoucher(null);
+        setDiscountAmount(0);
+      }
+    }
+  }, [subtotal]);
 
   const toggleAddon = (name: string) =>
     setAddons((items) =>
@@ -341,16 +373,54 @@ export function BookingDialog({ children }: { children: React.ReactNode }) {
                   </div>
 
                   {appliedVoucher ? (
-                    <div className="p-2.5 bg-white rounded border border-emerald-300 flex items-center justify-between text-xs">
-                      <div>
-                        <span className="font-bold text-emerald-800 font-mono flex items-center gap-1">
-                          <Check size={14} className="text-emerald-600" /> {appliedVoucher.code} · {appliedVoucher.title}
-                        </span>
-                        <span className="text-[10px] text-emerald-600 block">Đã giảm {formatVnd(discountAmount)}</span>
+                    <div className="space-y-1.5">
+                      <div className="p-2.5 bg-white rounded-md border border-emerald-300 flex items-center justify-between text-xs shadow-2xs">
+                        <div>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-[9px] font-bold px-1.5 py-0.2 bg-emerald-100 text-emerald-800 rounded">
+                              ✨ Đã tự động áp dụng
+                            </span>
+                            <span className="font-bold text-emerald-900 font-mono flex items-center gap-1">
+                              <Check size={13} className="text-emerald-600" /> {appliedVoucher.code}
+                            </span>
+                          </div>
+                          <span className="text-[11px] text-emerald-700 block mt-0.5">
+                            Đã giảm <strong className="text-emerald-900 font-bold">{formatVnd(discountAmount)}</strong> vào tổng hóa đơn
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-extrabold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                            -{formatVnd(discountAmount)}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={handleRemoveVoucher}
+                            className="text-stone-400 hover:text-rose-600 p-1 rounded transition cursor-pointer"
+                            title="Hủy mã"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
                       </div>
-                      <span className="font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                        -{formatVnd(discountAmount)}
-                      </span>
+
+                      {availableVouchers.filter((v) => v.code !== appliedVoucher.code).length > 0 && (
+                        <div className="flex items-center gap-1 flex-wrap text-[10px]">
+                          <span className="text-stone-500">Đổi mã:</span>
+                          {availableVouchers
+                            .filter((v) => v.code !== appliedVoucher.code)
+                            .slice(0, 3)
+                            .map((v) => (
+                              <button
+                                key={v.id}
+                                type="button"
+                                onClick={() => handleApplyVoucher(v.code)}
+                                className="px-1.5 py-0.5 bg-white hover:bg-sky-50 text-[#0284C7] border border-sky-200 rounded font-mono font-bold transition cursor-pointer"
+                              >
+                                {v.code}
+                              </button>
+                            ))}
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div>

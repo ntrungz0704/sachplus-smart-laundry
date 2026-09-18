@@ -2384,22 +2384,29 @@ function VouchersTab() {
   };
 
   const handleOpenAdd = () => {
+    const today = new Date();
+    const end = new Date();
+    end.setDate(today.getDate() + 60);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const todayStr = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
+    const endStr = `${end.getFullYear()}-${pad(end.getMonth() + 1)}-${pad(end.getDate())}`;
+
     setEditingVoucher({
       id: `vch-${Date.now()}`,
-      code: "HAPPYHOUR20",
-      title: "GIỜ VÀNG SÁNG SỚM -20K",
-      description: "Giảm ngay 20.000₫ cho đơn giặt sấy gửi trước 11h trưa",
+      code: "GIAMGIA20",
+      title: "ƯU ĐÃI CƯ DÂN VINHOMES -20K",
+      description: "Giảm ngay 20.000₫ cho đơn giặt sấy dịch vụ tiện ích",
       discountType: "fixed",
       discountValue: 20000,
       maxDiscount: 20000,
       minOrderValue: 69000,
-      startDate: "2026-09-01",
-      endDate: "2026-10-31",
-      activeDays: "weekdays",
-      timeSlot: "custom",
+      startDate: todayStr,
+      endDate: endStr,
+      activeDays: "all",
+      timeSlot: "all_day",
       timeStart: "07:00",
       timeEnd: "11:00",
-      usageLimit: 300,
+      usageLimit: 500,
       usedCount: 0,
       isActive: true,
     });
@@ -2594,127 +2601,228 @@ function VouchersTab() {
 
           {editingVoucher && (
             <form onSubmit={handleSaveVoucher} className="space-y-4 pt-2">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-bold text-stone-700 block mb-1">Mã Voucher (Code)</label>
+                  <label className="text-xs font-bold text-stone-700 block mb-1">Mã Voucher (Code) *</label>
                   <input
                     type="text"
                     value={editingVoucher.code}
                     onChange={(e) => setEditingVoucher({ ...editingVoucher, code: e.target.value.toUpperCase() })}
                     required
-                    className="w-full px-3 py-2 text-xs border border-stone-200 rounded-md focus:ring-2 focus:ring-[#0284C7] font-mono font-bold"
+                    placeholder="VD: SACHPLUS30"
+                    className="w-full px-3 py-2 text-xs border border-stone-200 rounded-md focus:ring-2 focus:ring-[#0284C7] font-mono font-bold uppercase"
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-bold text-stone-700 block mb-1">Tiêu Đề Chiến Dịch</label>
+                  <label className="text-xs font-bold text-stone-700 block mb-1">Tiêu Đề Chiến Dịch *</label>
                   <input
                     type="text"
                     value={editingVoucher.title}
                     onChange={(e) => setEditingVoucher({ ...editingVoucher, title: e.target.value })}
                     required
+                    placeholder="VD: GIẢM 30% ĐƠN GIẶT"
                     className="w-full px-3 py-2 text-xs border border-stone-200 rounded-md focus:ring-2 focus:ring-[#0284C7]"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-bold text-stone-700 block mb-1">Mức Giảm (VNĐ hoặc %)</label>
-                  <input
-                    type="number"
-                    value={editingVoucher.discountValue}
-                    onChange={(e) => setEditingVoucher({ ...editingVoucher, discountValue: Number(e.target.value) })}
-                    required
-                    className="w-full px-3 py-2 text-xs border border-stone-200 rounded-md focus:ring-2 focus:ring-[#0284C7] font-bold text-[#0284C7]"
-                  />
+              <div>
+                <label className="text-xs font-bold text-stone-700 block mb-1">Mô Tả Quyền Lợi & Điều Kiện</label>
+                <input
+                  type="text"
+                  value={editingVoucher.description || ""}
+                  onChange={(e) => setEditingVoucher({ ...editingVoucher, description: e.target.value })}
+                  placeholder="VD: Giảm 30% (tối đa 50.000₫) cho đơn giặt sấy từ 100.000₫"
+                  className="w-full px-3 py-2 text-xs border border-stone-200 rounded-md focus:ring-2 focus:ring-[#0284C7]"
+                />
+              </div>
+
+              {/* Discount Type & Values */}
+              <div className="p-3 bg-stone-50 rounded-lg border border-stone-200 space-y-3">
+                <div className="text-xs font-bold text-stone-800 flex items-center gap-1.5">
+                  <Tag size={14} className="text-[#0284C7]" /> Mức Giảm & Điều Kiện Đơn Hàng
                 </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-semibold text-stone-600 block mb-1">Hình Thức Giảm</label>
+                    <select
+                      value={editingVoucher.discountType || "percent"}
+                      onChange={(e) => setEditingVoucher({ ...editingVoucher, discountType: e.target.value as "percent" | "fixed" })}
+                      className="w-full px-3 py-2 text-xs border border-stone-200 rounded-md bg-white font-medium"
+                    >
+                      <option value="percent">Giảm theo % (Phần trăm)</option>
+                      <option value="fixed">Giảm số tiền cố định (VNĐ)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-stone-600 block mb-1">
+                      {editingVoucher.discountType === "percent" ? "Mức Giảm (%) *" : "Số Tiền Giảm (VNĐ) *"}
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={editingVoucher.discountType === "percent" ? 100 : 10000000}
+                      value={editingVoucher.discountValue}
+                      onChange={(e) => setEditingVoucher({ ...editingVoucher, discountValue: Number(e.target.value) })}
+                      required
+                      className="w-full px-3 py-2 text-xs border border-stone-200 rounded-md focus:ring-2 focus:ring-[#0284C7] font-bold text-[#0284C7] bg-white"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-semibold text-stone-600 block mb-1">Đơn Tối Thiểu (VNĐ) *</label>
+                    <input
+                      type="number"
+                      min={0}
+                      step={1000}
+                      value={editingVoucher.minOrderValue}
+                      onChange={(e) => setEditingVoucher({ ...editingVoucher, minOrderValue: Number(e.target.value) })}
+                      required
+                      className="w-full px-3 py-2 text-xs border border-stone-200 rounded-md focus:ring-2 focus:ring-[#0284C7] bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-stone-600 block mb-1">
+                      {editingVoucher.discountType === "percent" ? "Giảm Tối Đa (VNĐ) *" : "Giảm Tối Đa"}
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      step={1000}
+                      value={editingVoucher.maxDiscount || editingVoucher.discountValue}
+                      onChange={(e) => setEditingVoucher({ ...editingVoucher, maxDiscount: Number(e.target.value) })}
+                      className="w-full px-3 py-2 text-xs border border-stone-200 rounded-md focus:ring-2 focus:ring-[#0284C7] bg-white"
+                      placeholder="Không giới hạn nếu để trống"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Date & Time Schedule Box */}
+              <div className="p-3 bg-sky-50/60 rounded-lg border border-sky-200 space-y-3">
+                <div className="text-xs font-bold text-[#0369A1] flex items-center gap-1.5">
+                  <Calendar size={14} /> Chỉnh Ngày Giờ & Thời Hạn Hiệu Lực
+                </div>
+
+                {/* Start Date & End Date */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-semibold text-stone-700 block mb-1">Ngày Bắt Đầu *</label>
+                    <input
+                      type="date"
+                      value={editingVoucher.startDate}
+                      onChange={(e) => setEditingVoucher({ ...editingVoucher, startDate: e.target.value })}
+                      required
+                      className="w-full px-3 py-2 text-xs border border-stone-300 rounded-md bg-white font-medium cursor-pointer"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-stone-700 block mb-1">Ngày Hết Hạn *</label>
+                    <input
+                      type="date"
+                      value={editingVoucher.endDate}
+                      onChange={(e) => setEditingVoucher({ ...editingVoucher, endDate: e.target.value })}
+                      required
+                      className="w-full px-3 py-2 text-xs border border-stone-300 rounded-md bg-white font-medium cursor-pointer"
+                    />
+                  </div>
+                </div>
+
+                {/* Time slot & Days of week */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <div>
+                    <label className="text-xs font-semibold text-stone-700 block mb-1">Khung Giờ Trong Ngày</label>
+                    <select
+                      value={editingVoucher.timeSlot}
+                      onChange={(e) => setEditingVoucher({ ...editingVoucher, timeSlot: e.target.value as "all_day" | "custom" })}
+                      className="w-full px-3 py-2 text-xs border border-stone-300 rounded-md bg-white cursor-pointer font-medium"
+                    >
+                      <option value="all_day">Cả ngày (07:00 – 22:00)</option>
+                      <option value="custom">Giờ vàng tùy chỉnh (Custom)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-stone-700 block mb-1">Ngày Áp Dụng Trong Tuần</label>
+                    <select
+                      value={editingVoucher.activeDays}
+                      onChange={(e) => setEditingVoucher({ ...editingVoucher, activeDays: e.target.value as "all" | "weekdays" | "weekends" })}
+                      className="w-full px-3 py-2 text-xs border border-stone-300 rounded-md bg-white cursor-pointer font-medium"
+                    >
+                      <option value="all">Tất cả các ngày (T2 – CN)</option>
+                      <option value="weekdays">Chỉ ngày trong tuần (T2 – T6)</option>
+                      <option value="weekends">Chỉ cuối tuần (Thứ 7 & Chủ Nhật)</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Custom Time Pickers */}
+                {editingVoucher.timeSlot === "custom" && (
+                  <div className="grid grid-cols-2 gap-3 bg-amber-50 p-2.5 rounded-md border border-amber-200">
+                    <div>
+                      <label className="text-xs font-bold text-amber-900 block mb-1">Giờ Bắt Đầu</label>
+                      <input
+                        type="time"
+                        value={editingVoucher.timeStart || "07:00"}
+                        onChange={(e) => setEditingVoucher({ ...editingVoucher, timeStart: e.target.value })}
+                        className="w-full px-3 py-1.5 text-xs border border-amber-300 rounded bg-white font-mono cursor-pointer"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-amber-900 block mb-1">Giờ Kết Thúc</label>
+                      <input
+                        type="time"
+                        value={editingVoucher.timeEnd || "11:00"}
+                        onChange={(e) => setEditingVoucher({ ...editingVoucher, timeEnd: e.target.value })}
+                        className="w-full px-3 py-1.5 text-xs border border-amber-300 rounded bg-white font-mono cursor-pointer"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Usage Limit & Status */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
                 <div>
-                  <label className="text-xs font-bold text-stone-700 block mb-1">Đơn Tối Thiểu (VNĐ)</label>
+                  <label className="text-xs font-bold text-stone-700 block mb-1">Tổng Lượt Sử Dụng Tối Đa</label>
                   <input
                     type="number"
-                    value={editingVoucher.minOrderValue}
-                    onChange={(e) => setEditingVoucher({ ...editingVoucher, minOrderValue: Number(e.target.value) })}
+                    min={1}
+                    value={editingVoucher.usageLimit}
+                    onChange={(e) => setEditingVoucher({ ...editingVoucher, usageLimit: Number(e.target.value) })}
                     required
+                    placeholder="VD: 500"
                     className="w-full px-3 py-2 text-xs border border-stone-200 rounded-md focus:ring-2 focus:ring-[#0284C7]"
                   />
                 </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-bold text-stone-700 block mb-1">Khung Giờ Áp Dụng</label>
-                  <select
-                    value={editingVoucher.timeSlot}
-                    onChange={(e) => setEditingVoucher({ ...editingVoucher, timeSlot: e.target.value as "all_day" | "custom" })}
-                    className="w-full px-3 py-2 text-xs border border-stone-200 rounded-md bg-white"
-                  >
-                    <option value="all_day">Cả ngày (07:00 – 22:00)</option>
-                    <option value="custom">Giờ vàng tùy chỉnh</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-stone-700 block mb-1">Ngày Trong Tuần</label>
-                  <select
-                    value={editingVoucher.activeDays}
-                    onChange={(e) => setEditingVoucher({ ...editingVoucher, activeDays: e.target.value as "all" | "weekdays" | "weekends" })}
-                    className="w-full px-3 py-2 text-xs border border-stone-200 rounded-md bg-white"
-                  >
-                    <option value="all">Tất cả các ngày</option>
-                    <option value="weekdays">Chỉ ngày trong tuần (T2 – T6)</option>
-                    <option value="weekends">Chỉ cuối tuần (T7 & CN)</option>
-                  </select>
+                <div className="pt-4">
+                  <label className="flex items-center gap-2 text-xs font-bold text-stone-700 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={editingVoucher.isActive}
+                      onChange={(e) => setEditingVoucher({ ...editingVoucher, isActive: e.target.checked })}
+                      className="w-4 h-4 text-[#0284C7] rounded cursor-pointer"
+                    />
+                    <span>Đang kích hoạt chiến dịch</span>
+                  </label>
                 </div>
               </div>
 
-              {editingVoucher.timeSlot === "custom" && (
-                <div className="grid grid-cols-2 gap-3 bg-amber-50/70 p-2.5 rounded-lg border border-amber-200">
-                  <div>
-                    <label className="text-xs font-bold text-amber-900 block mb-1">Giờ Bắt Đầu</label>
-                    <input
-                      type="time"
-                      value={editingVoucher.timeStart || "07:00"}
-                      onChange={(e) => setEditingVoucher({ ...editingVoucher, timeStart: e.target.value })}
-                      className="w-full px-3 py-1.5 text-xs border border-stone-200 rounded bg-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold text-amber-900 block mb-1">Giờ Kết Thúc</label>
-                    <input
-                      type="time"
-                      value={editingVoucher.timeEnd || "11:00"}
-                      onChange={(e) => setEditingVoucher({ ...editingVoucher, timeEnd: e.target.value })}
-                      className="w-full px-3 py-1.5 text-xs border border-stone-200 rounded bg-white"
-                    />
-                  </div>
-                </div>
-              )}
-
-              <div className="flex items-center justify-between pt-2">
-                <label className="flex items-center gap-2 text-xs font-bold text-stone-700 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={editingVoucher.isActive}
-                    onChange={(e) => setEditingVoucher({ ...editingVoucher, isActive: e.target.checked })}
-                    className="w-4 h-4 text-[#0284C7] rounded"
-                  />
-                  <span>Đang kích hoạt chiến dịch</span>
-                </label>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setIsDialogOpen(false)}
-                    className="px-3 py-2 text-xs font-semibold text-stone-600 bg-stone-100 hover:bg-stone-200 rounded-md cursor-pointer"
-                  >
-                    Hủy bỏ
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-4 py-2 text-xs font-bold text-white bg-[#0284C7] hover:bg-[#0369A1] rounded-md flex items-center gap-1.5 shadow-2xs cursor-pointer"
-                  >
-                    <Save size={14} /> Lưu ưu đãi
-                  </button>
-                </div>
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-stone-100">
+                <button
+                  type="button"
+                  onClick={() => setIsDialogOpen(false)}
+                  className="px-4 py-2 text-xs font-semibold text-stone-600 bg-stone-100 hover:bg-stone-200 rounded-md cursor-pointer transition"
+                >
+                  Hủy bỏ
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 text-xs font-bold text-white bg-[#0284C7] hover:bg-[#0369A1] rounded-md flex items-center gap-1.5 shadow-sm cursor-pointer transition"
+                >
+                  <Save size={14} /> Lưu ưu đãi
+                </button>
               </div>
             </form>
           )}

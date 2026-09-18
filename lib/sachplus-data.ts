@@ -969,8 +969,11 @@ export function validateVoucher(
     return { valid: false, message: `Mã ưu đãi "${found.code}" hiện đang tạm dừng áp dụng.`, discountAmount: 0, voucher: found };
   }
 
-  // Check date range
-  const todayStr = refDate.toISOString().split("T")[0]; // YYYY-MM-DD
+  // Check date range (local time)
+  const y = refDate.getFullYear();
+  const m = String(refDate.getMonth() + 1).padStart(2, "0");
+  const d = String(refDate.getDate()).padStart(2, "0");
+  const todayStr = `${y}-${m}-${d}`;
   if (found.startDate && todayStr < found.startDate) {
     return {
       valid: false,

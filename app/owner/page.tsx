@@ -49,12 +49,11 @@ export default function OwnerPage() {
     const cafe = orders.filter((o) => o.cafeItems && o.cafeItems.length > 0).length;
     const laundry = totalOrders - cafe;
     if (totalOrders === 0) return [
-      { name: "Laundry", value: 50, color: "#0284C7" },
-      { name: "Café", value: 50, color: "#0284C7" },
+      { name: "Chưa có đơn hàng", value: 100, color: "#94A3B8" },
     ];
     return [
       { name: "Laundry (Giặt sấy, hấp, chăn ga)", value: Math.round((laundry / totalOrders) * 100), color: "#0284C7" },
-      { name: "Sạch+ Café & Đồ uống", value: Math.round((cafe / totalOrders) * 100), color: "#0284C7" },
+      { name: "Sạch+ Café & Đồ uống", value: Math.round((cafe / totalOrders) * 100), color: "#10B981" },
     ];
   }, [orders, totalOrders]);
 
@@ -87,12 +86,12 @@ export default function OwnerPage() {
       {/* 4 Thẻ KPI vận hành */}
       <section className="owner-kpis">
         {[
-          [formatVnd(totalRevenue), "Tổng doanh thu", `${totalOrders} đơn hàng`, TrendingUp, "positive"],
-          [`${totalOrders} đơn`, "Tổng đơn tiếp nhận", `${pendingOrders} đang xử lý`, Shirt, "positive"],
-          [`${completedOrders} đơn`, "Đã hoàn thành QC", totalOrders > 0 ? `${Math.round((completedOrders / totalOrders) * 100)}% năng suất` : "Chưa có đơn", PackageCheck, "neutral"],
-          [`${runningMachines}/${machines.length}`, "Máy đang chạy", `${machines.length - runningMachines} máy trống`, WashingMachine, "neutral"],
-        ].map(([value, label, change, Icon, tone]) => (
-          <article key={String(label)}>
+          { value: formatVnd(totalRevenue), label: "Tổng doanh thu", change: `${totalOrders} đơn hàng`, Icon: TrendingUp, tone: "positive" },
+          { value: `${totalOrders} đơn`, label: "Tổng đơn tiếp nhận", change: `${pendingOrders} đang xử lý`, Icon: Shirt, tone: "positive" },
+          { value: `${completedOrders} đơn`, label: "Đã hoàn thành QC", change: totalOrders > 0 ? `${Math.round((completedOrders / totalOrders) * 100)}% năng suất` : "Chưa có đơn", Icon: PackageCheck, tone: "neutral" },
+          { value: `${runningMachines}/${machines.length}`, label: "Máy đang chạy", change: `${machines.length - runningMachines} máy trống`, Icon: WashingMachine, tone: "neutral" },
+        ].map(({ value, label, change, Icon, tone }) => (
+          <article key={label}>
             <div>
               <span>{label}</span>
               <Icon size={18} className="text-stone-400" />
@@ -126,7 +125,7 @@ export default function OwnerPage() {
               <XAxis dataKey="day" tick={{ fontSize: 11 }} />
               <YAxis tick={{ fontSize: 11 }} unit="K" />
               <Tooltip
-                formatter={(val: number) => [`${val.toFixed(1)}K`, "Doanh thu"]}
+                formatter={(val: any) => [`${Number(val || 0).toFixed(1)}K`, "Doanh thu"]}
                 contentStyle={{ borderRadius: 12, border: "1px solid #E2E8F0", fontSize: 12 }}
               />
               <Area type="monotone" dataKey="revenue" stroke="#0284C7" fill="url(#gRevenue)" strokeWidth={2.5} />
@@ -146,7 +145,7 @@ export default function OwnerPage() {
                     <Cell key={entry.name} fill={entry.color} />
                   ))}
                 </Pie>
-                <Tooltip formatter={(val: number) => [`${val}%`]} />
+                <Tooltip formatter={(val: any) => [`${val}%`]} />
               </PieChart>
             </ResponsiveContainer>
             <div>

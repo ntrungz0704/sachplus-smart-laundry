@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useEffect } from "react";
 import {
   ChevronLeft,
@@ -671,18 +672,18 @@ export function OpsShell({ role, children }: { role: "staff" | "owner" | "admin"
                 >
                   ⚡ Đăng nhập 1-chạm: {ROLE_LABELS[role]} (Demo)
                 </button>
-                <a
+                <Link
                   href={`/login?redirect=${encodeURIComponent(pathname)}&role=${role}`}
                   className="w-full py-2.5 bg-[#0284C7] hover:bg-[#0369A1] text-white font-bold rounded-md text-xs transition shadow-sm block text-center"
                 >
                   Đi tới trang Đăng nhập {ROLE_LABELS[role]} →
-                </a>
-                <a
+                </Link>
+                <Link
                   href="/"
                   className="w-full py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 font-medium rounded-md text-xs transition block text-center"
                 >
                   Quay lại trang chủ Khách hàng
-                </a>
+                </Link>
               </div>
             </div>
           </div>

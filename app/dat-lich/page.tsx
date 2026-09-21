@@ -8,12 +8,14 @@ import {
   createLaundryOrder,
   formatVnd,
   getServiceCatalog,
+  getCafeMenu,
   getVouchers,
   validateVoucher,
   getLaundryOrders,
   getMachines,
   type LaundryService,
   type VoucherItem,
+  type CafeMenuItem,
 } from "@/lib/sachplus-data";
 import { getCurrentUser, type UserProfile } from "@/lib/sachplus-auth";
 import { toast } from "sonner";
@@ -42,11 +44,7 @@ import {
   Zap,
 } from "lucide-react";
 
-const cafeAddons = [
-  { name: "Bạc xỉu (Lầu 1)", price: 35000, note: "Pha sẵn đón khách" },
-  { name: "Matcha Latte", price: 39000, note: "Matcha Nhật êm dịu" },
-  { name: "Croissant bơ nướng", price: 32000, note: "Bánh nóng mới ra lò" },
-];
+
 
 export const EXPRESS_CONFIG: Record<
   LaundryService,
@@ -180,17 +178,37 @@ function BookingContent() {
       if (!address) setAddress(u.apartment || "");
     }
 
+    const handleMenu = () => setCafeMenu(getCafeMenu());
+    window.addEventListener("sachplus:menu-updated", handleMenu);
+
     return () => {
       window.removeEventListener("sachplus:vouchers-updated", handleVouchers);
+      window.removeEventListener("sachplus:menu-updated", handleMenu);
     };
   }, []);
+
+  const [cafeMenu, setCafeMenu] = useState<CafeMenuItem[]>(() => getCafeMenu());
+
+  const availableCafeAddons = useMemo(() => {
+    return cafeMenu
+      .filter((c) => c.status !== "archived" && c.stock > 0)
+      .slice(0, 6)
+      .map((c) => ({
+        id: c.id,
+        name: c.name,
+        price: c.price,
+        note: c.note,
+        stock: c.stock,
+        unit: c.unit || "ly",
+      }));
+  }, [cafeMenu]);
 
   const fullCatalog = getServiceCatalog();
   const catalog = fullCatalog.filter((item) => item.status !== "archived");
   const basePrice = fullCatalog.find((item) => item.name === service)?.price ?? 69000;
   const currentExpress = EXPRESS_CONFIG[service] || EXPRESS_CONFIG["Giặt & sấy"];
   const expressFee = express ? currentExpress.fee : 0;
-  const cafeTotal = cafeAddons
+  const cafeTotal = availableCafeAddons
     .filter((item) => addons.includes(item.name))
     .reduce((sum, item) => sum + item.price, 0);
   const cafeDiscount = addons.length > 0 ? Math.round(cafeTotal * 0.1) : 0;
@@ -208,6 +226,55 @@ function BookingContent() {
       prev.includes(item) ? prev.filter((i) => i !== item) : [...prev, item]
     );
   };
+
+  // Tự động áp dụng mã ưu đãi tốt nhất hoặc mã từ URL khi vào trang
+  useEffect(() => {
+    if (availableVouchers.length === 0) return;
+
+    const params = new URLSearchParams(window.location.search);
+    const vParam = params.get("voucher")?.trim().toUpperCase();
+
+    if (vParam) {
+      const res = validateVoucher(vParam, subtotal);
+      if (res.valid && res.voucher) {
+        setAppliedVoucher(res.voucher);
+        setDiscountAmount(res.discountAmount);
+        setVoucherInput(res.voucher.code);
+        return;
+      }
+    }
+
+    // Nếu chưa có mã nào được áp dụng, tự động tìm mã tốt nhất đủ điều kiện cho đơn hàng
+    if (!appliedVoucher) {
+      let bestVoucher: VoucherItem | null = null;
+      let maxDiscount = 0;
+      for (const v of availableVouchers) {
+        const res = validateVoucher(v.code, subtotal);
+        if (res.valid && res.discountAmount > maxDiscount) {
+          maxDiscount = res.discountAmount;
+          bestVoucher = res.voucher || v;
+        }
+      }
+      if (bestVoucher && maxDiscount > 0) {
+        setAppliedVoucher(bestVoucher);
+        setDiscountAmount(maxDiscount);
+        setVoucherInput(bestVoucher.code);
+      }
+    }
+  }, [availableVouchers]);
+
+  // Tự động cập nhật lại mức giảm khi giá trị đơn hàng thay đổi (chọn dịch vụ, thêm đồ uống...)
+  useEffect(() => {
+    if (appliedVoucher) {
+      const res = validateVoucher(appliedVoucher.code, subtotal);
+      if (res.valid) {
+        setDiscountAmount(res.discountAmount);
+      } else {
+        setAppliedVoucher(null);
+        setDiscountAmount(0);
+      }
+    }
+  }, [subtotal]);
 
   const handleApplyVoucher = (codeToApply?: string) => {
     const target = (codeToApply || voucherInput).trim().toUpperCase();
@@ -628,41 +695,52 @@ function BookingContent() {
                 </p>
               </div>
 
-              {/* Cafe Addons list */}
+              {/* Cafe Addons list — Dynamically loaded from Cafe Menu & Inventory */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {cafeAddons.map((c) => {
-                  const selected = addons.includes(c.name);
-                  return (
-                    <button
-                      type="button"
-                      key={c.name}
-                      onClick={() => toggleAddon(c.name)}
-                      className={`p-3.5 rounded-md border text-left transition cursor-pointer flex flex-col justify-between ${
-                        selected
-                          ? "bg-[#F0F9FF] border-[#0284C7]/40 ring-2 ring-[#0284C7]/20"
-                          : "bg-white border-stone-200 hover:bg-stone-50"
-                      }`}
-                    >
-                      <div>
-                        <div className="flex justify-between items-center mb-1">
-                          <span className="text-xs font-bold text-stone-900">{c.name}</span>
-                          <span
-                            className={`w-4 h-4 rounded-full border flex items-center justify-center text-[10px] ${
-                              selected ? "bg-[#0284C7] text-white border-[#0284C7]" : "border-stone-300"
-                            }`}
-                          >
-                            {selected && "✓"}
-                          </span>
+                {availableCafeAddons.length === 0 ? (
+                  <p className="text-xs text-stone-400 py-4 col-span-3 text-center">
+                    Hiện chưa có món đồ uống sẵn sàng phục vụ.
+                  </p>
+                ) : (
+                  availableCafeAddons.map((c) => {
+                    const selected = addons.includes(c.name);
+                    return (
+                      <button
+                        type="button"
+                        key={c.id}
+                        onClick={() => toggleAddon(c.name)}
+                        className={`p-3.5 rounded-md border text-left transition cursor-pointer flex flex-col justify-between ${
+                          selected
+                            ? "bg-[#F0F9FF] border-[#0284C7]/40 ring-2 ring-[#0284C7]/20"
+                            : "bg-white border-stone-200 hover:bg-stone-50"
+                        }`}
+                      >
+                        <div>
+                          <div className="flex justify-between items-center mb-1">
+                            <span className="text-xs font-bold text-stone-900">{c.name}</span>
+                            <span
+                              className={`w-4 h-4 rounded-full border flex items-center justify-center text-[10px] ${
+                                selected ? "bg-[#0284C7] text-white border-[#0284C7]" : "border-stone-300"
+                              }`}
+                            >
+                              {selected && "✓"}
+                            </span>
+                          </div>
+                          <small className="text-[11px] text-stone-500 block leading-tight">{c.note}</small>
+                          <div className="mt-1">
+                            <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-medium">
+                              Còn {c.stock} {c.unit}
+                            </span>
+                          </div>
                         </div>
-                        <small className="text-[11px] text-stone-500 block leading-tight">{c.note}</small>
-                      </div>
-                      <div className="mt-3 pt-2 border-t border-stone-100 flex items-baseline justify-between">
-                        <strong className="text-xs text-[#0369A1] font-bold">{formatVnd(c.price)}</strong>
-                        <span className="text-[10px] text-[#0284C7] font-semibold">-10%</span>
-                      </div>
-                    </button>
-                  );
-                })}
+                        <div className="mt-3 pt-2 border-t border-stone-100 flex items-baseline justify-between">
+                          <strong className="text-xs text-[#0369A1] font-bold">{formatVnd(c.price)}</strong>
+                          <span className="text-[10px] text-[#0284C7] font-semibold">-10%</span>
+                        </div>
+                      </button>
+                    );
+                  })
+                )}
               </div>
 
               {/* Mã ưu đãi & Voucher */}
@@ -683,18 +761,56 @@ function BookingContent() {
                 </div>
 
                 {appliedVoucher ? (
-                  <div className="p-3 bg-white rounded border border-emerald-300 flex items-center justify-between">
-                    <div>
-                      <span className="text-xs font-bold text-emerald-800 font-mono flex items-center gap-1">
-                        <Check size={14} className="text-emerald-600" /> {appliedVoucher.code} · {appliedVoucher.title}
-                      </span>
-                      <span className="text-[11px] text-emerald-700 block mt-0.5">
-                        Đã giảm {formatVnd(discountAmount)} vào tổng hóa đơn
-                      </span>
+                  <div className="space-y-2">
+                    <div className="p-3 bg-white rounded-lg border border-emerald-300 flex items-center justify-between shadow-2xs">
+                      <div>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                            ✨ Đã tự động áp dụng
+                          </span>
+                          <span className="text-xs font-bold text-emerald-900 font-mono flex items-center gap-1">
+                            <Check size={14} className="text-emerald-600" /> {appliedVoucher.code}
+                          </span>
+                          <span className="text-xs font-semibold text-stone-700">· {appliedVoucher.title}</span>
+                        </div>
+                        <span className="text-[11px] text-emerald-700 block mt-1">
+                          Đã giảm <strong className="text-emerald-800 font-bold">{formatVnd(discountAmount)}</strong> trực tiếp vào đơn giặt
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-extrabold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200">
+                          -{formatVnd(discountAmount)}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={handleRemoveVoucher}
+                          className="p-1 text-stone-400 hover:text-rose-600 rounded transition cursor-pointer"
+                          title="Hủy mã ưu đãi"
+                        >
+                          <X size={15} />
+                        </button>
+                      </div>
                     </div>
-                    <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded border border-emerald-200">
-                      -{formatVnd(discountAmount)}
-                    </span>
+
+                    {/* Cho phép khách đổi sang voucher khác nhanh chóng */}
+                    {availableVouchers.filter((v) => v.code !== appliedVoucher.code).length > 0 && (
+                      <div className="pt-1 flex items-center gap-1.5 flex-wrap text-[11px]">
+                        <span className="text-stone-500 font-medium">Hoặc đổi mã khác:</span>
+                        {availableVouchers
+                          .filter((v) => v.code !== appliedVoucher.code)
+                          .slice(0, 4)
+                          .map((v) => (
+                            <button
+                              key={v.id}
+                              type="button"
+                              onClick={() => handleApplyVoucher(v.code)}
+                              className="px-2 py-0.5 bg-white hover:bg-sky-50 text-[#0284C7] border border-sky-200 hover:border-sky-400 rounded text-[10px] font-mono font-bold transition cursor-pointer"
+                            >
+                              {v.code}
+                            </button>
+                          ))}
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div>

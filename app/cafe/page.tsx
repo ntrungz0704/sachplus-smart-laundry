@@ -53,8 +53,21 @@ export default function CafePage() {
   const subtotal = useMemo(() => items.reduce((sum, item) => sum + item.price * item.quantity, 0), [items]);
   const discount = mode === "Chờ lấy đồ" && subtotal >= 50000 ? Math.round(subtotal * 0.1) : 0;
 
-  const update = (id: string, by: number) =>
-    setCart((current) => ({ ...current, [id]: Math.max(0, (current[id] || 0) + by) }));
+  const update = (id: string, by: number) => {
+    const targetItem = menu.find((m) => m.id === id);
+    const availableStock = targetItem?.stock ?? 999;
+    const currentQty = cart[id] || 0;
+    const nextQty = currentQty + by;
+
+    if (by > 0 && nextQty > availableStock) {
+      toast.error(
+        `Rất tiếc, món "${targetItem?.name}" hiện chỉ còn ${availableStock} ${targetItem?.unit || "ly"} trong kho!`
+      );
+      return;
+    }
+
+    setCart((current) => ({ ...current, [id]: Math.max(0, nextQty) }));
+  };
 
   const [confirmedOrder, setConfirmedOrder] = useState<{
     id: string;
@@ -126,39 +139,91 @@ export default function CafePage() {
           </Tabs>
 
           <div className="product-grid">
-            {visible.map((item) => (
-              <article className="product-card" key={item.id}>
-                <img
-                  src={item.image}
-                  alt={item.name}
-                  className="drink-art-img"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1517256064527-09c73fc73e38?w=400&auto=format&fit=crop&q=80";
-                  }}
-                />
-                <div className="product-info">
-                  <span>{item.category}</span>
-                  <h2>{item.name}</h2>
-                  <p>{item.note}</p>
-                  <strong>{formatVnd(item.price)}</strong>
-                </div>
-                {cart[item.id] ? (
-                  <div className="quantity-control">
-                    <button aria-label={`Giảm ${item.name}`} onClick={() => update(item.id, -1)}>
-                      <Minus size={14} />
-                    </button>
-                    <b>{cart[item.id]}</b>
-                    <button aria-label={`Thêm ${item.name}`} onClick={() => update(item.id, 1)}>
-                      <Plus size={14} />
-                    </button>
+            {visible.map((item) => {
+              const isOutOfStock = (item.stock ?? 0) <= 0;
+              const isLowStock = !isOutOfStock && (item.stock ?? 0) <= (item.alertThreshold ?? 10);
+
+              return (
+                <article
+                  className={`product-card relative transition ${
+                    isOutOfStock ? "opacity-75 grayscale-[20%]" : ""
+                  }`}
+                  key={item.id}
+                >
+                  <div className="relative overflow-hidden rounded-lg">
+                    <img
+                      src={item.image}
+                      alt={item.name}
+                      className="drink-art-img"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src =
+                          "https://images.unsplash.com/photo-1517256064527-09c73fc73e38?w=400&auto=format&fit=crop&q=80";
+                      }}
+                    />
+                    {isOutOfStock && (
+                      <div className="absolute inset-0 bg-stone-900/60 backdrop-blur-[1px] flex items-center justify-center">
+                        <span className="px-3 py-1 bg-rose-600 text-white font-bold text-xs rounded shadow">
+                          Tạm hết hàng
+                        </span>
+                      </div>
+                    )}
                   </div>
-                ) : (
-                  <button className="add-product" onClick={() => update(item.id, 1)}>
-                    <Plus size={14} /> Thêm
-                  </button>
-                )}
-              </article>
-            ))}
+
+                  <div className="product-info">
+                    <div className="flex items-center justify-between gap-1">
+                      <span>{item.category}</span>
+                      {isOutOfStock ? (
+                        <span className="text-[10px] font-bold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200">
+                          Hết hàng
+                        </span>
+                      ) : isLowStock ? (
+                        <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                          Chỉ còn {item.stock} {item.unit || "ly"}
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-medium text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">
+                          Còn {item.stock} {item.unit || "ly"}
+                        </span>
+                      )}
+                    </div>
+                    <h2>{item.name}</h2>
+                    <p>{item.note}</p>
+                    <div className="flex items-baseline gap-1 mt-1">
+                      <strong>{formatVnd(item.price)}</strong>
+                      <span className="text-[11px] text-stone-500 font-medium">/ {item.unit || "ly"}</span>
+                    </div>
+                  </div>
+
+                  {isOutOfStock ? (
+                    <button
+                      disabled
+                      className="add-product opacity-50 cursor-not-allowed bg-stone-100 text-stone-400 border border-stone-200 shadow-none hover:bg-stone-100"
+                    >
+                      Hết hàng
+                    </button>
+                  ) : cart[item.id] ? (
+                    <div className="quantity-control">
+                      <button aria-label={`Giảm ${item.name}`} onClick={() => update(item.id, -1)}>
+                        <Minus size={14} />
+                      </button>
+                      <b>{cart[item.id]}</b>
+                      <button
+                        aria-label={`Thêm ${item.name}`}
+                        onClick={() => update(item.id, 1)}
+                        disabled={(cart[item.id] || 0) >= (item.stock ?? 999)}
+                        className={(cart[item.id] || 0) >= (item.stock ?? 999) ? "opacity-40 cursor-not-allowed" : ""}
+                      >
+                        <Plus size={14} />
+                      </button>
+                    </div>
+                  ) : (
+                    <button className="add-product cursor-pointer" onClick={() => update(item.id, 1)}>
+                      <Plus size={14} /> Thêm
+                    </button>
+                  )}
+                </article>
+              );
+            })}
           </div>
         </div>
 

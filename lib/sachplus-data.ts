@@ -113,6 +113,10 @@ export type CafeMenuItem = {
   price: number;
   image: string;
   status?: "active" | "archived";
+  stock: number;
+  initialStock?: number;
+  unit: string;
+  alertThreshold: number;
 };
 
 export type MachineItem = {
@@ -176,16 +180,16 @@ const DEFAULT_SERVICES: ServiceItem[] = [
 ];
 
 const DEFAULT_CAFE_MENU: CafeMenuItem[] = [
-  { id: "americano", category: "Cà phê", name: "Americano Đá", note: "Đậm vừa · Hạt Arabica Cầu Đất", price: 29000, image: "https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=400&auto=format&fit=crop&q=80", status: "active" },
-  { id: "bac-xiu", category: "Cà phê", name: "Bạc Xỉu Sạch+", note: "Cà phê sữa dịu · Thơm ngậy", price: 35000, image: "https://images.unsplash.com/photo-1461023058943-07fcbe16d735?w=400&auto=format&fit=crop&q=80", status: "active" },
-  { id: "latte", category: "Cà phê", name: "Caffe Latte", note: "Êm mượt · Sữa tươi thanh trùng", price: 39000, image: "https://images.unsplash.com/photo-1517256064527-09c73fc73e38?w=400&auto=format&fit=crop&q=80", status: "active" },
-  { id: "matcha", category: "Trà", name: "Matcha Latte Nhật", note: "Bột trà Uji Kyoto · Ít ngọt", price: 39000, image: "https://images.unsplash.com/photo-1515823064-d6e0c04616a7?w=400&auto=format&fit=crop&q=80", status: "active" },
-  { id: "peach", category: "Trà", name: "Trà Đào Cam Sả", note: "Thanh mát · Đào giòn sần sật", price: 39000, image: "https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=400&auto=format&fit=crop&q=80", status: "active" },
-  { id: "lotus", category: "Trà", name: "Trà Sen Vàng Kem Sữa", note: "Hạt sen bùi · Lớp foam mặn dịu", price: 42000, image: "https://images.unsplash.com/photo-1544787219-7f47ccb76574?w=400&auto=format&fit=crop&q=80", status: "active" },
-  { id: "orange", category: "Trái cây", name: "Cam Ép Tươi Mới", note: "Cam sành nguyên chất 100%", price: 45000, image: "https://images.unsplash.com/photo-1621506289937-a8e4df240d0b?w=400&auto=format&fit=crop&q=80", status: "active" },
-  { id: "avocado", category: "Trái cây", name: "Sinh Tố Bơ Sáp", note: "Bơ tươi Đắk Lắk · Sánh béo", price: 49000, image: "https://images.unsplash.com/photo-1638176066666-ffb2f013c7dd?w=400&auto=format&fit=crop&q=80", status: "active" },
-  { id: "croissant", category: "Bánh", name: "Croissant Bơ Nướng", note: "Vỏ ngàn lớp giòn rụm thơm bơ", price: 32000, image: "https://images.unsplash.com/photo-1555507036-ab1f4038024a?w=400&auto=format&fit=crop&q=80", status: "active" },
-  { id: "sandwich", category: "Bánh", name: "Bánh Mì Gà Xé Nấm", note: "Nóng giòn · Đủ dinh dưỡng bữa sáng", price: 45000, image: "https://images.unsplash.com/photo-1528735602780-2552fd46c7af?w=400&auto=format&fit=crop&q=80", status: "active" },
+  { id: "americano", category: "Cà phê", name: "Americano Đá", note: "Đậm vừa · Hạt Arabica Cầu Đất", price: 29000, image: "https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=400&auto=format&fit=crop&q=80", status: "active", stock: 85, initialStock: 100, unit: "ly", alertThreshold: 15 },
+  { id: "bac-xiu", category: "Cà phê", name: "Bạc Xỉu Sạch+", note: "Cà phê sữa dịu · Thơm ngậy", price: 35000, image: "https://images.unsplash.com/photo-1461023058943-07fcbe16d735?w=400&auto=format&fit=crop&q=80", status: "active", stock: 62, initialStock: 100, unit: "ly", alertThreshold: 15 },
+  { id: "latte", category: "Cà phê", name: "Caffe Latte", note: "Êm mượt · Sữa tươi thanh trùng", price: 39000, image: "https://images.unsplash.com/photo-1517256064527-09c73fc73e38?w=400&auto=format&fit=crop&q=80", status: "active", stock: 48, initialStock: 80, unit: "ly", alertThreshold: 10 },
+  { id: "matcha", category: "Trà", name: "Matcha Latte Nhật", note: "Bột trà Uji Kyoto · Ít ngọt", price: 39000, image: "https://images.unsplash.com/photo-1515823064-d6e0c04616a7?w=400&auto=format&fit=crop&q=80", status: "active", stock: 40, initialStock: 60, unit: "ly", alertThreshold: 10 },
+  { id: "peach", category: "Trà", name: "Trà Đào Cam Sả", note: "Thanh mát · Đào giòn sần sật", price: 39000, image: "https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=400&auto=format&fit=crop&q=80", status: "active", stock: 35, initialStock: 60, unit: "ly", alertThreshold: 10 },
+  { id: "lotus", category: "Trà", name: "Trà Sen Vàng Kem Sữa", note: "Hạt sen bùi · Lớp foam mặn dịu", price: 42000, image: "https://images.unsplash.com/photo-1544787219-7f47ccb76574?w=400&auto=format&fit=crop&q=80", status: "active", stock: 28, initialStock: 50, unit: "ly", alertThreshold: 10 },
+  { id: "orange", category: "Trái cây", name: "Cam Ép Tươi Mới", note: "Cam sành nguyên chất 100%", price: 45000, image: "https://images.unsplash.com/photo-1621506289937-a8e4df240d0b?w=400&auto=format&fit=crop&q=80", status: "active", stock: 22, initialStock: 40, unit: "ly", alertThreshold: 8 },
+  { id: "avocado", category: "Trái cây", name: "Sinh Tố Bơ Sáp", note: "Bơ tươi Đắk Lắk · Sánh béo", price: 49000, image: "https://images.unsplash.com/photo-1638176066666-ffb2f013c7dd?w=400&auto=format&fit=crop&q=80", status: "active", stock: 18, initialStock: 35, unit: "ly", alertThreshold: 8 },
+  { id: "croissant", category: "Bánh", name: "Croissant Bơ Nướng", note: "Vỏ ngàn lớp giòn rụm thơm bơ", price: 32000, image: "https://images.unsplash.com/photo-1555507036-ab1f4038024a?w=400&auto=format&fit=crop&q=80", status: "active", stock: 12, initialStock: 30, unit: "cái", alertThreshold: 5 },
+  { id: "sandwich", category: "Bánh", name: "Bánh Mì Gà Xé Nấm", note: "Nóng giòn · Đủ dinh dưỡng bữa sáng", price: 45000, image: "https://images.unsplash.com/photo-1528735602780-2552fd46c7af?w=400&auto=format&fit=crop&q=80", status: "active", stock: 8, initialStock: 25, unit: "phần", alertThreshold: 5 },
 ];
 
 const DEFAULT_MACHINES: MachineItem[] = [
@@ -212,7 +216,7 @@ const DEFAULT_VOUCHERS: VoucherItem[] = [
     activeDays: "all",
     timeSlot: "all_day",
     usageLimit: 500,
-    usedCount: 142,
+    usedCount: 0,
     isActive: true,
   },
   {
@@ -229,7 +233,7 @@ const DEFAULT_VOUCHERS: VoucherItem[] = [
     activeDays: "all",
     timeSlot: "all_day",
     usageLimit: 1000,
-    usedCount: 389,
+    usedCount: 0,
     isActive: true,
   },
   {
@@ -248,7 +252,7 @@ const DEFAULT_VOUCHERS: VoucherItem[] = [
     timeStart: "07:00",
     timeEnd: "11:00",
     usageLimit: 300,
-    usedCount: 78,
+    usedCount: 0,
     isActive: true,
   },
   {
@@ -265,7 +269,7 @@ const DEFAULT_VOUCHERS: VoucherItem[] = [
     activeDays: "weekends",
     timeSlot: "all_day",
     usageLimit: 200,
-    usedCount: 45,
+    usedCount: 0,
     isActive: true,
   },
   {
@@ -282,7 +286,7 @@ const DEFAULT_VOUCHERS: VoucherItem[] = [
     activeDays: "all",
     timeSlot: "all_day",
     usageLimit: 150,
-    usedCount: 62,
+    usedCount: 0,
     isActive: true,
   },
 ];
@@ -319,10 +323,6 @@ function safeGet<T>(key: string, fallback: T): T {
       return fallback;
     }
     const parsed = JSON.parse(raw);
-    if (Array.isArray(fallback) && Array.isArray(parsed) && parsed.length === 0 && (fallback as unknown[]).length > 0) {
-      try { localStorage.setItem(key, JSON.stringify(fallback)); } catch {}
-      return fallback;
-    }
     return parsed as T;
   } catch {
     return fallback;
@@ -332,6 +332,18 @@ function safeGet<T>(key: string, fallback: T): T {
 function safeSet(key: string, value: unknown) {
   if (typeof window === "undefined") return;
   localStorage.setItem(key, JSON.stringify(value));
+}
+
+// Tự động dọn dẹp sạch sẽ 100% hóa đơn cũ trên trình duyệt để khởi động từ con số 0
+if (typeof window !== "undefined") {
+  try {
+    const CLEAN_KEY = "sachplus_clean_zero_orders_v2";
+    if (localStorage.getItem(CLEAN_KEY) !== "true") {
+      localStorage.setItem(KEYS.orders, JSON.stringify([]));
+      localStorage.setItem(KEYS.cafeOrders, JSON.stringify([]));
+      localStorage.setItem(CLEAN_KEY, "true");
+    }
+  } catch {}
 }
 
 // ============================================================
@@ -424,7 +436,17 @@ export const serviceCatalog = DEFAULT_SERVICES;
 // ============================================================
 
 export function getCafeMenu(): CafeMenuItem[] {
-  return safeGet(KEYS.cafeMenu, DEFAULT_CAFE_MENU);
+  const items = safeGet<CafeMenuItem[]>(KEYS.cafeMenu, DEFAULT_CAFE_MENU);
+  return items.map((item) => {
+    const def = DEFAULT_CAFE_MENU.find((d) => d.id === item.id);
+    return {
+      ...item,
+      stock: typeof item.stock === "number" ? item.stock : (def?.stock ?? 50),
+      initialStock: typeof item.initialStock === "number" ? item.initialStock : (def?.initialStock ?? 60),
+      unit: item.unit || def?.unit || "ly",
+      alertThreshold: typeof item.alertThreshold === "number" ? item.alertThreshold : (def?.alertThreshold ?? 10),
+    };
+  });
 }
 
 export function saveCafeMenu(items: CafeMenuItem[]) {
@@ -443,6 +465,143 @@ export function toggleCafeMenuStatus(id: string): CafeMenuItem[] {
   return updated;
 }
 
+export function deleteCafeMenuItem(id: string): CafeMenuItem[] {
+  const current = getCafeMenu();
+  const updated = current.filter((c) => c.id !== id);
+  saveCafeMenu(updated);
+  return updated;
+}
+
+export function adjustCafeStock(id: string, delta: number, _reason?: string): { success: boolean; item?: CafeMenuItem; message: string } {
+  const current = getCafeMenu();
+  const found = current.find((c) => c.id === id);
+  if (!found) {
+    return { success: false, message: "Không tìm thấy món trong menu." };
+  }
+  const newStock = Math.max(0, found.stock + delta);
+  const updated = current.map((c) => (c.id === id ? { ...c, stock: newStock } : c));
+  saveCafeMenu(updated);
+  const actionText = delta >= 0 ? `Nhập thêm ${delta}` : `Xuất bớt ${Math.abs(delta)}`;
+  return {
+    success: true,
+    item: { ...found, stock: newStock },
+    message: `Đã ${actionText} ${found.unit || "ly"} cho món "${found.name}". Tồn kho hiện tại: ${newStock} ${found.unit || "ly"}.`,
+  };
+}
+
+export function setCafeStock(id: string, stock: number): { success: boolean; item?: CafeMenuItem; message: string } {
+  const current = getCafeMenu();
+  const found = current.find((c) => c.id === id);
+  if (!found) {
+    return { success: false, message: "Không tìm thấy món trong menu." };
+  }
+  const newStock = Math.max(0, stock);
+  const updated = current.map((c) => (c.id === id ? { ...c, stock: newStock } : c));
+  saveCafeMenu(updated);
+  return {
+    success: true,
+    item: { ...found, stock: newStock },
+    message: `Đã cập nhật tồn kho món "${found.name}" thành ${newStock} ${found.unit || "ly"}.`,
+  };
+}
+
+export interface ProductMetrics {
+  itemId: string;
+  itemName: string;
+  category: string;
+  price: number;
+  totalUnitsSold: number;
+  totalOrders: number;
+  totalCustomers: number;
+  revenue: number;
+  stock: number;
+  unit: string;
+  alertThreshold: number;
+  stockStatus: "in_stock" | "low_stock" | "out_of_stock";
+}
+
+export function getProductMetrics(itemId: string): ProductMetrics {
+  const menu = getCafeMenu();
+  const item = menu.find((c) => c.id === itemId || c.name.toLowerCase() === itemId.toLowerCase());
+  const cafeOrders = getCafeOrders();
+  const laundryOrders = getLaundryOrders();
+
+  let unitsSold = 0;
+  let orderCount = 0;
+  const customers = new Set<string>();
+  let revenue = 0;
+
+  const itemNameLower = item ? item.name.toLowerCase() : itemId.toLowerCase();
+  const itemIdLower = item ? item.id.toLowerCase() : itemId.toLowerCase();
+
+  // 1. Quét qua toàn bộ đơn đặt tại quầy Café
+  cafeOrders.forEach((order) => {
+    let orderMatched = false;
+    order.items?.forEach((it) => {
+      const match =
+        it.id?.toLowerCase() === itemIdLower ||
+        it.name?.toLowerCase() === itemNameLower ||
+        it.name?.toLowerCase().includes(itemNameLower);
+      if (match) {
+        const qty = it.quantity || 1;
+        unitsSold += qty;
+        revenue += (it.price || item?.price || 0) * qty;
+        orderMatched = true;
+      }
+    });
+    if (orderMatched) {
+      orderCount++;
+      if (order.customerName) {
+        customers.add(order.customerName.trim().toLowerCase());
+      }
+    }
+  });
+
+  // 2. Quét qua các đơn giặt sấy có chọn thêm đồ uống (cafeItems)
+  laundryOrders.forEach((lo) => {
+    let loMatched = false;
+    lo.cafeItems?.forEach((ci) => {
+      const match =
+        ci.toLowerCase().includes(itemNameLower) ||
+        (item && itemNameLower.includes(ci.toLowerCase()));
+      if (match) {
+        unitsSold += 1;
+        revenue += item ? item.price : 35000;
+        loMatched = true;
+      }
+    });
+    if (loMatched) {
+      orderCount++;
+      const custId = lo.customerPhone || lo.customerName || "Khách cư dân";
+      customers.add(custId.trim().toLowerCase());
+    }
+  });
+
+  const stock = item?.stock ?? 0;
+  const threshold = item?.alertThreshold ?? 10;
+  let stockStatus: "in_stock" | "low_stock" | "out_of_stock" = "in_stock";
+  if (stock <= 0) {
+    stockStatus = "out_of_stock";
+  } else if (stock <= threshold) {
+    stockStatus = "low_stock";
+  }
+
+  return {
+    itemId: item?.id || itemId,
+    itemName: item?.name || itemId,
+    category: item?.category || "Khác",
+    price: item?.price || 0,
+    totalUnitsSold: unitsSold,
+    totalOrders: orderCount,
+    totalCustomers: customers.size,
+    revenue,
+    stock,
+    unit: item?.unit || "ly",
+    alertThreshold: threshold,
+    stockStatus,
+  };
+}
+
 // ============================================================
 // MACHINES — CRUD
 // ============================================================
@@ -456,64 +615,17 @@ export function saveMachines(items: MachineItem[]) {
   emit("sachplus:machines-updated", items);
 }
 
-export const DEFAULT_LAUNDRY_ORDERS: LaundryOrder[] = [
-  {
-    id: "SP-882194",
-    service: "Giặt & sấy",
-    pickupDate: "17/09/2026",
-    pickupTime: "08:30 – 09:30",
-    journey: "Lấy tại sảnh Landmark 81 → Giao tận cửa",
-    status: "Đang giặt",
-    total: 84000,
-    weight: "4.2kg",
-    machineId: "W-01",
-    machineTimer: "28 phút còn lại",
-    qrCode: "SP-882194-SGPARK",
-    customerName: "Nguyễn Trung (Cư dân)",
-    customerPhone: "0901234567",
-    customerAddress: "Landmark 81 · Căn 28.05",
-    beforePhoto: "https://images.unsplash.com/photo-1545173168-9f1947eebb7f?w=600&q=80",
-    afterPhoto: "https://images.unsplash.com/photo-1582735689369-4fe89db7114c?w=600&q=80",
-    createdAt: "2026-09-17T08:30:00.000Z",
-  },
-  {
-    id: "SP-881920",
-    service: "Giặt hấp",
-    pickupDate: "17/09/2026",
-    pickupTime: "10:00 – 11:00",
-    journey: "Gửi tại quầy Shophouse SH-08",
-    status: "QC & đóng gói",
-    total: 178000,
-    weight: "2 áo vest + 1 đầm lụa",
-    qrCode: "SP-881920-SGPARK",
-    customerName: "Trần Mai Chi",
-    customerPhone: "0912345678",
-    customerAddress: "Park 5 · Căn 12.02",
-    beforePhoto: "https://images.unsplash.com/photo-1517677208171-0bc6725a3e60?w=600&q=80",
-    afterPhoto: "https://images.unsplash.com/photo-1489274495757-95c7c837b101?w=600&q=80",
-    createdAt: "2026-09-17T07:15:00.000Z",
-  },
-  {
-    id: "SP-879410",
-    service: "Chăn ga",
-    pickupDate: "16/09/2026",
-    pickupTime: "16:00 – 17:00",
-    journey: "Lấy tại sảnh Park 3 → Giao tận cửa",
-    status: "Hoàn tất",
-    total: 129000,
-    weight: "1 bộ chăn ga King",
-    qrCode: "SP-879410-SGPARK",
-    customerName: "Lê Văn Hùng",
-    customerPhone: "0933221100",
-    customerAddress: "Park 3 · Căn 18.06",
-    beforePhoto: "https://images.unsplash.com/photo-1582735689369-4fe89db7114c?w=600&q=80",
-    afterPhoto: "https://images.unsplash.com/photo-1526367790999-0150786686a2?w=600&q=80",
-    createdAt: "2026-09-16T15:00:00.000Z",
-  },
-];
+export const DEFAULT_LAUNDRY_ORDERS: LaundryOrder[] = [];
 
 export function getLaundryOrders(): LaundryOrder[] {
-  return safeGet<LaundryOrder[]>(KEYS.orders, DEFAULT_LAUNDRY_ORDERS);
+  const orders = safeGet<LaundryOrder[]>(KEYS.orders, DEFAULT_LAUNDRY_ORDERS);
+  const sanitized = orders.filter((o) => !["SP-882194", "SP-881920", "SP-879410"].includes(o.id));
+  if (sanitized.length !== orders.length && typeof window !== "undefined") {
+    try {
+      localStorage.setItem(KEYS.orders, JSON.stringify(sanitized));
+    } catch {}
+  }
+  return sanitized;
 }
 
 export function createLaundryOrder(input: {
@@ -570,6 +682,30 @@ export function createLaundryOrder(input: {
 
   if (input.voucherCode) {
     incrementVoucherUsage(input.voucherCode);
+  }
+
+  // Khấu trừ tồn kho cho các món Café gọi kèm dịch vụ giặt
+  if (input.cafeItems && input.cafeItems.length > 0) {
+    const menu = getCafeMenu();
+    let menuChanged = false;
+    const updatedMenu = menu.map((menuItem) => {
+      const match = input.cafeItems?.some(
+        (ci) =>
+          ci.toLowerCase().includes(menuItem.name.toLowerCase()) ||
+          menuItem.name.toLowerCase().includes(ci.toLowerCase())
+      );
+      if (match) {
+        menuChanged = true;
+        return {
+          ...menuItem,
+          stock: Math.max(0, menuItem.stock - 1),
+        };
+      }
+      return menuItem;
+    });
+    if (menuChanged) {
+      saveCafeMenu(updatedMenu);
+    }
   }
 
   const existing = getLaundryOrders();
@@ -758,22 +894,58 @@ export function getAccumulatedPoints(): number {
 // ============================================================
 
 export function getVouchers(): VoucherItem[] {
-  return safeGet<VoucherItem[]>(KEYS.vouchers, DEFAULT_VOUCHERS);
+  const vouchers = safeGet<VoucherItem[]>(KEYS.vouchers, DEFAULT_VOUCHERS);
+  const orders = getLaundryOrders();
+  let needsSync = false;
+
+  const normalized = vouchers.map((v) => {
+    // 100% tính toán động từ đơn hàng thực tế đã áp dụng mã này (hoàn toàn không dùng số ảo như 142, 389...)
+    const realUses = orders.filter(
+      (o) => o.voucherCode && o.voucherCode.trim().toUpperCase() === v.code.toUpperCase()
+    ).length;
+
+    if (v.usedCount !== realUses) {
+      needsSync = true;
+    }
+
+    return {
+      ...v,
+      usedCount: realUses,
+    };
+  });
+
+  // Tự động ghi đè localStorage để dọn dẹp số liệu cũ (142, 389...) đã bị lưu trước đó trong trình duyệt
+  if (needsSync && typeof window !== "undefined") {
+    try {
+      localStorage.setItem(KEYS.vouchers, JSON.stringify(normalized));
+    } catch {}
+  }
+
+  return normalized;
 }
 
 export function saveVouchers(items: VoucherItem[]) {
-  safeSet(KEYS.vouchers, items);
-  emit("sachplus:vouchers-updated", items);
+  const orders = getLaundryOrders();
+  const cleaned = items.map((v) => ({
+    ...v,
+    usedCount: orders.filter(
+      (o) => o.voucherCode && o.voucherCode.trim().toUpperCase() === v.code.toUpperCase()
+    ).length,
+  }));
+  safeSet(KEYS.vouchers, cleaned);
+  emit("sachplus:vouchers-updated", cleaned);
 }
 
-export function incrementVoucherUsage(code: string) {
+export function deleteVoucher(id: string): VoucherItem[] {
   const vouchers = getVouchers();
-  const updated = vouchers.map((v) =>
-    v.code.toUpperCase() === code.trim().toUpperCase()
-      ? { ...v, usedCount: (v.usedCount || 0) + 1 }
-      : v
-  );
+  const updated = vouchers.filter((v) => v.id !== id);
   saveVouchers(updated);
+  return updated;
+}
+
+export function incrementVoucherUsage(_code: string) {
+  // getVouchers() tự động tính toán trực tiếp từ orders theo thời gian thực
+  emit("sachplus:vouchers-updated");
 }
 
 export function validateVoucher(
@@ -797,8 +969,11 @@ export function validateVoucher(
     return { valid: false, message: `Mã ưu đãi "${found.code}" hiện đang tạm dừng áp dụng.`, discountAmount: 0, voucher: found };
   }
 
-  // Check date range
-  const todayStr = refDate.toISOString().split("T")[0]; // YYYY-MM-DD
+  // Check date range (local time)
+  const y = refDate.getFullYear();
+  const m = String(refDate.getMonth() + 1).padStart(2, "0");
+  const d = String(refDate.getDate()).padStart(2, "0");
+  const todayStr = `${y}-${m}-${d}`;
   if (found.startDate && todayStr < found.startDate) {
     return {
       valid: false,
@@ -881,7 +1056,7 @@ export function validateVoucher(
 }
 
 // ============================================================
-// CAFÉ ORDERS — Read/Write
+// CAFÉ ORDERS & REAL INVENTORY SYNC — Read/Write
 // ============================================================
 
 export type CafeOrder = {
@@ -896,8 +1071,19 @@ export type CafeOrder = {
   createdAt: string;
 };
 
+export const DEFAULT_CAFE_ORDERS: CafeOrder[] = [];
+
 export function getCafeOrders(): CafeOrder[] {
-  return safeGet<CafeOrder[]>(KEYS.cafeOrders, []);
+  const orders = safeGet<CafeOrder[]>(KEYS.cafeOrders, DEFAULT_CAFE_ORDERS);
+  const sanitized = orders.filter(
+    (o) => !["CF-8821", "CF-8819", "CF-8815", "CF-8810", "CF-8805", "CF-8798"].includes(o.id)
+  );
+  if (sanitized.length !== orders.length && typeof window !== "undefined") {
+    try {
+      localStorage.setItem(KEYS.cafeOrders, JSON.stringify(sanitized));
+    } catch {}
+  }
+  return sanitized;
 }
 
 export function createCafeOrder(input: Omit<CafeOrder, "id" | "createdAt"> & { id?: string }) {
@@ -907,6 +1093,30 @@ export function createCafeOrder(input: Omit<CafeOrder, "id" | "createdAt"> & { i
     id,
     createdAt: new Date().toISOString(),
   };
+
+  // 1. Tự động khấu trừ tồn kho sản phẩm
+  const currentMenu = getCafeMenu();
+  let menuUpdated = false;
+  const updatedMenu = currentMenu.map((menuItem) => {
+    const matched = input.items.find(
+      (it) => it.id === menuItem.id || it.name.toLowerCase() === menuItem.name.toLowerCase()
+    );
+    if (matched) {
+      menuUpdated = true;
+      const qty = matched.quantity || 1;
+      return {
+        ...menuItem,
+        stock: Math.max(0, menuItem.stock - qty),
+      };
+    }
+    return menuItem;
+  });
+
+  if (menuUpdated) {
+    saveCafeMenu(updatedMenu);
+  }
+
+  // 2. Lưu đơn hàng
   const existing = getCafeOrders();
   safeSet(KEYS.cafeOrders, [order, ...existing]);
   emit("sachplus:cafe-order-created", order);

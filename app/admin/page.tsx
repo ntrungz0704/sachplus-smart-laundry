@@ -35,6 +35,9 @@ import {
   Layers,
   ChevronRight,
   SlidersHorizontal,
+  Trash2,
+  Boxes,
+  PackagePlus,
 } from "lucide-react";
 import { toast } from "sonner";
 import { OpsShell } from "@/components/sachplus/ops-shell";
@@ -53,6 +56,10 @@ import {
   getCafeMenu,
   saveCafeMenu,
   toggleCafeMenuStatus,
+  deleteCafeMenuItem,
+  adjustCafeStock,
+  setCafeStock,
+  getProductMetrics,
   getLaundryOrders,
   updateOrderStatus,
   advanceOrderStatus,
@@ -64,6 +71,7 @@ import {
   saveMachines,
   getVouchers,
   saveVouchers,
+  deleteVoucher,
   formatVnd,
   getCafeOrders,
   type ServiceItem,
@@ -73,6 +81,7 @@ import {
   type LaundryStatus,
   type VoucherItem,
   type CafeOrder,
+  type ProductMetrics,
 } from "@/lib/sachplus-data";
 import { getAllUsers, type UserProfile } from "@/lib/sachplus-auth";
 
@@ -286,14 +295,13 @@ function OverviewTab({ onNavigateTab }: { onNavigateTab: (tab: string) => void }
     const phones = new Set<string>();
     orders.forEach((o) => {
       if (o.customerPhone) phones.add(o.customerPhone.trim());
+      else if (o.customerName) phones.add(o.customerName.trim());
     });
-    users
-      .filter((u) => u.role === "customer")
-      .forEach((u) => {
-        if (u.phone) phones.add(u.phone.trim());
-      });
-    return Math.max(phones.size, 1);
-  }, [orders, users]);
+    cafeOrders.forEach((co) => {
+      if (co.customerName) phones.add(co.customerName.trim());
+    });
+    return phones.size;
+  }, [orders, cafeOrders]);
 
   const activeVouchersCount = useMemo(() => {
     return vouchers.filter((v) => v.isActive).length;
@@ -358,7 +366,7 @@ function OverviewTab({ onNavigateTab }: { onNavigateTab: (tab: string) => void }
     if (sorted.length > 0) {
       return { name: sorted[0][0], count: sorted[0][1] };
     }
-    return { name: "Bạc Xỉu Sạch+", count: 0 };
+    return { name: "Chưa có đơn phát sinh", count: 0 };
   }, [cafeOrders]);
 
   // Dynamic 7-Day Chart Data from real orders
@@ -643,6 +651,14 @@ function OverviewTab({ onNavigateTab }: { onNavigateTab: (tab: string) => void }
               ))}
             </svg>
 
+            {orders.length === 0 && cafeOrders.length === 0 && (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <span className="text-xs font-bold text-stone-500 bg-white/95 px-3.5 py-1.5 rounded-full border border-stone-200 shadow-2xs">
+                  ⚡ Hệ thống sẵn sàng tiếp nhận đơn mới
+                </span>
+              </div>
+            )}
+
             {/* X-Axis Labels dynamically computed from today */}
             <div className="flex justify-between text-[10px] sm:text-[11px] font-semibold text-stone-600 pt-3">
               {chartDays.map((d, i) => (
@@ -682,7 +698,7 @@ function OverviewTab({ onNavigateTab }: { onNavigateTab: (tab: string) => void }
                   <div className="w-full bg-stone-100 h-2 rounded-full overflow-hidden">
                     <div
                       className={`${item.color} h-full rounded-full transition-all duration-500`}
-                      style={{ width: `${Math.max(item.percentage, 4)}%` }}
+                      style={{ width: `${item.percentage}%` }}
                     />
                   </div>
                 </div>
@@ -694,7 +710,7 @@ function OverviewTab({ onNavigateTab }: { onNavigateTab: (tab: string) => void }
             <div className="text-xs min-w-0">
               <strong className="text-[#0284C7] block font-bold truncate">Món Café Được Đặt Nhiều:</strong>
               <span className="text-stone-600 truncate block">
-                {topCafeItem.name} {topCafeItem.count > 0 ? `· ${topCafeItem.count} ly đã bán` : "· Sẵn sàng phục vụ"}
+                {topCafeItem.count > 0 ? `${topCafeItem.name} · ${topCafeItem.count} ly đã bán` : "Chưa có đơn hàng phát sinh"}
               </span>
             </div>
             <button
@@ -882,9 +898,10 @@ function ServicesTab() {
         </div>
       </div>
 
-      {/* Services Table — Zero Horizontal Scrollbar */}
+      {/* Services Table — Responsive Horizontal Scroll */}
       <div className="w-full border border-stone-200 rounded-xl overflow-hidden bg-white shadow-2xs">
-        <table className="w-full text-left border-collapse text-xs table-auto">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse text-xs min-w-[650px] table-auto">
           <thead>
             <tr className="bg-stone-50 border-b border-stone-200 text-stone-700 font-bold uppercase tracking-wider text-[11px]">
               <th className="py-3.5 px-4">Dịch Vụ & Mô Tả Quy Trình</th>
@@ -994,11 +1011,12 @@ function ServicesTab() {
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* Edit / Add Service Modal */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold text-stone-900">
               {editingItem && services.some((s) => s.id === editingItem.id)
@@ -1194,40 +1212,116 @@ function ServicesTab() {
 }
 
 // ============================================================================
-// 3. CAFE TAB (SOFT-DELETE: THÊM — SỬA — TẠM NGƯNG / BÁN LẠI)
+// 3. CAFE TAB (QUẢN LÝ THỰC ĐƠN, TỒN KHO & THỐNG KÊ ĐÃ BÁN CHI TIẾT)
 // ============================================================================
 function CafeTab() {
   const [menu, setMenu] = useState<CafeMenuItem[]>([]);
-  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "archived">("all");
+  const [cafeOrders, setCafeOrders] = useState<CafeOrder[]>([]);
+  const [laundryOrders, setLaundryOrders] = useState<LaundryOrder[]>([]);
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "archived" | "low_stock">("all");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [editingItem, setEditingItem] = useState<CafeMenuItem | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
-  useEffect(() => {
+  // Quick Stock Adjustment Dialog
+  const [stockItem, setStockItem] = useState<CafeMenuItem | null>(null);
+  const [stockAddAmount, setStockAddAmount] = useState<number>(20);
+  const [isStockDialogOpen, setIsStockDialogOpen] = useState(false);
+
+  // Delete Confirm Dialog
+  const [deletingItem, setDeletingItem] = useState<CafeMenuItem | null>(null);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+
+  const loadData = () => {
     setMenu(getCafeMenu());
-    const handleUpdate = () => setMenu(getCafeMenu());
+    setCafeOrders(getCafeOrders());
+    setLaundryOrders(getLaundryOrders());
+  };
+
+  useEffect(() => {
+    loadData();
+    const handleUpdate = () => loadData();
+
     window.addEventListener("sachplus:menu-updated", handleUpdate);
-    return () => window.removeEventListener("sachplus:menu-updated", handleUpdate);
+    window.addEventListener("sachplus:cafe-order-created", handleUpdate);
+    window.addEventListener("sachplus:order-created", handleUpdate);
+    window.addEventListener("sachplus:order-updated", handleUpdate);
+
+    return () => {
+      window.removeEventListener("sachplus:menu-updated", handleUpdate);
+      window.removeEventListener("sachplus:cafe-order-created", handleUpdate);
+      window.removeEventListener("sachplus:order-created", handleUpdate);
+      window.removeEventListener("sachplus:order-updated", handleUpdate);
+    };
   }, []);
+
+  // Compute metrics for each product dynamically from real orders
+  const metricsMap = useMemo(() => {
+    const map: Record<string, ProductMetrics> = {};
+    menu.forEach((item) => {
+      map[item.id] = getProductMetrics(item.id);
+    });
+    return map;
+  }, [menu, cafeOrders, laundryOrders]);
 
   const filteredMenu = useMemo(() => {
     return menu.filter((item) => {
+      const metrics = metricsMap[item.id];
       const matchStatus =
         statusFilter === "all"
           ? true
           : statusFilter === "active"
           ? item.status !== "archived"
-          : item.status === "archived";
+          : statusFilter === "archived"
+          ? item.status === "archived"
+          : (metrics?.stockStatus === "low_stock" || metrics?.stockStatus === "out_of_stock");
+
+      const matchCategory =
+        categoryFilter === "all" || item.category === categoryFilter;
+
       const matchSearch =
         searchQuery.trim() === "" ||
         item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.category.toLowerCase().includes(searchQuery.toLowerCase());
-      return matchStatus && matchSearch;
+        item.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        item.note.toLowerCase().includes(searchQuery.toLowerCase());
+
+      return matchStatus && matchCategory && matchSearch;
     });
-  }, [menu, statusFilter, searchQuery]);
+  }, [menu, statusFilter, categoryFilter, searchQuery, metricsMap]);
 
   const activeCount = menu.filter((c) => c.status !== "archived").length;
   const archivedCount = menu.filter((c) => c.status === "archived").length;
+  const lowStockCount = menu.filter((c) => {
+    const m = metricsMap[c.id];
+    return m?.stockStatus === "low_stock" || m?.stockStatus === "out_of_stock";
+  }).length;
+
+  const totalStockAvailable = useMemo(() => {
+    return menu.reduce((sum, item) => sum + (item.stock || 0), 0);
+  }, [menu]);
+
+  const totalSoldUnits = useMemo(() => {
+    return Object.values(metricsMap).reduce((sum, m) => sum + m.totalUnitsSold, 0);
+  }, [metricsMap]);
+
+  const totalFnbRevenue = useMemo(() => {
+    return Object.values(metricsMap).reduce((sum, m) => sum + m.revenue, 0);
+  }, [metricsMap]);
+
+  const totalUniqueCustomers = useMemo(() => {
+    const set = new Set<string>();
+    cafeOrders.forEach((co) => {
+      if (co.customerName) set.add(co.customerName.trim().toLowerCase());
+    });
+    laundryOrders.forEach((lo) => {
+      if (lo.cafeItems && lo.cafeItems.length > 0) {
+        const id = lo.customerPhone || lo.customerName || "";
+        if (id) set.add(id.trim().toLowerCase());
+      }
+    });
+    return set.size;
+  }, [cafeOrders, laundryOrders]);
 
   const handleToggleStatus = (item: CafeMenuItem) => {
     const isCurrentlyArchived = item.status === "archived";
@@ -1243,13 +1337,17 @@ function CafeTab() {
 
   const handleOpenAdd = () => {
     setEditingItem({
-      id: `cafe-${Date.now()}`,
+      id: `cafe-${Date.now().toString().slice(-6)}`,
       category: "Cà phê",
       name: "Cold Brew Cam Vàng",
       note: "Ủ lạnh 16h · Hương vị trái cây thanh mát",
       price: 45000,
       image: "https://images.unsplash.com/photo-1517256064527-09c73fc73e38?w=400&q=80",
       status: "active",
+      stock: 50,
+      initialStock: 50,
+      unit: "ly",
+      alertThreshold: 10,
     });
     setIsDialogOpen(true);
   };
@@ -1270,11 +1368,44 @@ function CafeTab() {
       toast.success(`Đã cập nhật món: "${editingItem.name}"`);
     } else {
       updated = [...menu, editingItem];
-      toast.success(`Đã thêm món mới: "${editingItem.name}"`);
+      toast.success(`Đã thêm món mới: "${editingItem.name}" (Tồn kho: ${editingItem.stock} ${editingItem.unit})`);
     }
     setMenu(updated);
     saveCafeMenu(updated);
     setIsDialogOpen(false);
+  };
+
+  const handleOpenQuickStock = (item: CafeMenuItem) => {
+    setStockItem(item);
+    setStockAddAmount(20);
+    setIsStockDialogOpen(true);
+  };
+
+  const handleConfirmStock = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!stockItem) return;
+
+    const res = adjustCafeStock(stockItem.id, Number(stockAddAmount));
+    if (res.success) {
+      toast.success(res.message);
+      setMenu(getCafeMenu());
+      setIsStockDialogOpen(false);
+    } else {
+      toast.error(res.message);
+    }
+  };
+
+  const handleDeleteItem = (item: CafeMenuItem) => {
+    setDeletingItem(item);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const handleConfirmDelete = () => {
+    if (!deletingItem) return;
+    const updated = deleteCafeMenuItem(deletingItem.id);
+    setMenu(updated);
+    toast.success(`Đã xóa món "${deletingItem.name}" khỏi thực đơn`);
+    setIsDeleteDialogOpen(false);
   };
 
   return (
@@ -1285,26 +1416,91 @@ function CafeTab() {
           <div className="flex items-center gap-2">
             <h2 className="text-xl font-bold text-stone-900">Quản Lý Menu Sạch+ Café Tầng Trệt</h2>
             <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
-              F&B Management
+              F&B & Tồn Kho Realtime
             </span>
           </div>
           <p className="text-xs text-stone-500 mt-1">
-            Quản lý thức uống, bánh ngọt phục vụ cư dân thưởng thức trong lúc chờ đồ giặt sấy.
+            Theo dõi chi tiết số đơn, số ly đã bán, số khách phục vụ và tình trạng tồn kho từng sản phẩm theo thời gian thực.
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={handleOpenAdd}
-          className="px-4 py-2.5 bg-[#0284C7] hover:bg-[#0369A1] text-white text-xs font-bold rounded-lg transition flex items-center gap-2 shadow-sm shrink-0 cursor-pointer"
-        >
-          <Plus size={15} /> Thêm món mới
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={handleOpenAdd}
+            className="px-4 py-2.5 bg-[#0284C7] hover:bg-[#0369A1] text-white text-xs font-bold rounded-lg transition flex items-center gap-2 shadow-sm cursor-pointer"
+          >
+            <Plus size={15} /> Thêm món mới
+          </button>
+        </div>
+      </div>
+
+      {/* 4 TOP SUMMARY KPI CARDS: REAL METRICS FROM ORDERS & INVENTORY */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        {/* Card 1: Tổng tồn kho */}
+        <div className="p-3.5 sm:p-4 rounded-xl border border-stone-200/90 bg-stone-50/50 flex flex-col justify-between">
+          <div className="flex items-center justify-between text-stone-500 mb-1">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-stone-500">Tồn kho khả dụng</span>
+            <Boxes size={15} className="text-[#0284C7]" />
+          </div>
+          <div className="text-xl font-extrabold text-stone-900">
+            {totalStockAvailable} <span className="text-xs font-semibold text-stone-500">sản phẩm</span>
+          </div>
+          <div className="text-[11px] text-stone-500 mt-1">
+            Phục vụ trên {menu.length} món trong menu
+          </div>
+        </div>
+
+        {/* Card 2: Tổng đã bán */}
+        <div className="p-3.5 sm:p-4 rounded-xl border border-sky-200/80 bg-sky-50/40 flex flex-col justify-between">
+          <div className="flex items-center justify-between text-[#0369A1] mb-1">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#0369A1]">Tổng đã bán ra</span>
+            <Coffee size={15} className="text-[#0284C7]" />
+          </div>
+          <div className="text-xl font-extrabold text-[#0284C7]">
+            {totalSoldUnits} <span className="text-xs font-semibold text-[#0369A1]">ly / suất</span>
+          </div>
+          <div className="text-[11px] text-stone-500 mt-1">
+            Doanh thu: <b>{formatVnd(totalFnbRevenue)}</b>
+          </div>
+        </div>
+
+        {/* Card 3: Khách hàng phục vụ */}
+        <div className="p-3.5 sm:p-4 rounded-xl border border-emerald-200/80 bg-emerald-50/40 flex flex-col justify-between">
+          <div className="flex items-center justify-between text-emerald-800 mb-1">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-800">Khách & Đơn Café</span>
+            <Users size={15} className="text-emerald-600" />
+          </div>
+          <div className="text-xl font-extrabold text-emerald-700">
+            {totalUniqueCustomers} <span className="text-xs font-semibold text-emerald-600">khách hàng</span>
+          </div>
+          <div className="text-[11px] text-stone-500 mt-1">
+            Trong <b>{cafeOrders.length}</b> đơn Café + đơn giặt kèm
+          </div>
+        </div>
+
+        {/* Card 4: Cảnh báo tồn kho */}
+        <div className={`p-3.5 sm:p-4 rounded-xl border flex flex-col justify-between ${
+          lowStockCount > 0
+            ? "border-amber-200 bg-amber-50/50 text-amber-900"
+            : "border-stone-200 bg-stone-50/50 text-stone-600"
+        }`}>
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[11px] font-bold uppercase tracking-wider">Cảnh báo tồn kho</span>
+            <AlertTriangle size={15} className={lowStockCount > 0 ? "text-amber-600" : "text-stone-400"} />
+          </div>
+          <div className="text-xl font-extrabold">
+            {lowStockCount} <span className="text-xs font-semibold">món cần nhập</span>
+          </div>
+          <div className="text-[11px] text-stone-500 mt-1">
+            {lowStockCount > 0 ? "Có món dưới ngưỡng an toàn" : "Toàn bộ kho đều đủ hàng"}
+          </div>
+        </div>
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-1.5 p-1 bg-stone-100 rounded-lg w-fit">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-1.5 p-1 bg-stone-100 rounded-lg w-fit">
           <button
             type="button"
             onClick={() => setStatusFilter("all")}
@@ -1330,6 +1526,18 @@ function CafeTab() {
           </button>
           <button
             type="button"
+            onClick={() => setStatusFilter("low_stock")}
+            className={`px-3 py-1.5 rounded-md text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+              statusFilter === "low_stock"
+                ? "bg-white text-amber-700 shadow-2xs"
+                : "text-stone-600 hover:text-stone-900"
+            }`}
+          >
+            <AlertTriangle size={12} className="text-amber-500" />
+            Sắp hết / Hết hàng ({lowStockCount})
+          </button>
+          <button
+            type="button"
             onClick={() => setStatusFilter("archived")}
             className={`px-3 py-1.5 rounded-md text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
               statusFilter === "archived"
@@ -1342,40 +1550,62 @@ function CafeTab() {
           </button>
         </div>
 
-        <div className="relative w-full sm:w-64">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Tìm món theo tên hoặc loại..."
-            className="w-full pl-9 pr-3 py-1.5 text-xs bg-stone-50 border border-stone-200 rounded-lg focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0284C7] transition"
-          />
+        <div className="flex items-center gap-2">
+          {/* Category Dropdown Filter */}
+          <select
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+            className="px-2.5 py-1.5 text-xs bg-stone-50 border border-stone-200 rounded-lg focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0284C7] font-medium text-stone-700 cursor-pointer"
+          >
+            <option value="all">Tất cả danh mục</option>
+            <option value="Cà phê">Cà phê</option>
+            <option value="Trà">Trà</option>
+            <option value="Trái cây">Trái cây</option>
+            <option value="Bánh">Bánh</option>
+          </select>
+
+          {/* Search Box */}
+          <div className="relative w-full sm:w-56">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Tìm món, loại, hương vị..."
+              className="w-full pl-9 pr-3 py-1.5 text-xs bg-stone-50 border border-stone-200 rounded-lg focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0284C7] transition"
+            />
+          </div>
         </div>
       </div>
 
-      {/* Menu Table — Zero Horizontal Scrollbar */}
+      {/* Menu Table with Full Metrics & Inventory — Responsive Horizontal Scroll */}
       <div className="w-full border border-stone-200 rounded-xl overflow-hidden bg-white shadow-2xs">
-        <table className="w-full text-left border-collapse text-xs table-auto">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse text-xs min-w-[750px] table-auto">
           <thead>
             <tr className="bg-stone-50 border-b border-stone-200 text-stone-700 font-bold uppercase tracking-wider text-[11px]">
               <th className="py-3.5 px-4">Món Ăn & Thức Uống</th>
-              <th className="py-3.5 px-3">Danh Mục</th>
-              <th className="py-3.5 px-3">Đơn Giá</th>
-              <th className="py-3.5 px-3">Ghi Chú Hương Vị</th>
-              <th className="py-3.5 px-4 text-right">Trạng Thái & Thao Tác</th>
+              <th className="py-3.5 px-3">Danh Mục & Đơn Giá</th>
+              <th className="py-3.5 px-3 text-center">Đã Bán (Số Ly/Suất)</th>
+              <th className="py-3.5 px-3">Số Đơn & Khách</th>
+              <th className="py-3.5 px-3">Tồn Kho & Tình Trạng</th>
+              <th className="py-3.5 px-4 text-right">Thao Tác Quản Trị</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-stone-100">
             {filteredMenu.length === 0 ? (
               <tr>
-                <td colSpan={5} className="text-center py-12 text-stone-400">
+                <td colSpan={6} className="text-center py-12 text-stone-400">
                   Không tìm thấy món ăn phù hợp với bộ lọc.
                 </td>
               </tr>
             ) : (
               filteredMenu.map((item) => {
                 const isArchived = item.status === "archived";
+                const metrics = metricsMap[item.id] || getProductMetrics(item.id);
+                const isOutOfStock = item.stock <= 0;
+                const isLowStock = !isOutOfStock && item.stock <= (item.alertThreshold || 10);
+
                 return (
                   <tr
                     key={item.id}
@@ -1383,58 +1613,121 @@ function CafeTab() {
                       isArchived ? "bg-stone-50/40 opacity-75" : ""
                     }`}
                   >
+                    {/* 1. Món ăn & hình ảnh */}
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-3">
                         <img
                           src={item.image}
                           alt={item.name}
-                          className="w-10 h-10 rounded-lg object-cover border border-stone-200 shrink-0"
+                          className="w-11 h-11 rounded-lg object-cover border border-stone-200 shrink-0"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src =
+                              "https://images.unsplash.com/photo-1517256064527-09c73fc73e38?w=400&auto=format&fit=crop&q=80";
+                          }}
                         />
                         <div>
                           <div className="font-bold text-stone-900 text-sm">{item.name}</div>
-                          <div className="text-[10px] text-stone-400 font-mono">ID: {item.id}</div>
+                          <div className="text-[11px] text-stone-500 line-clamp-1 mt-0.5 max-w-xs">
+                            {item.note}
+                          </div>
+                          <div className="text-[10px] text-stone-400 font-mono mt-0.5">ID: {item.id}</div>
                         </div>
                       </div>
                     </td>
+
+                    {/* 2. Danh mục & Đơn giá */}
                     <td className="py-3 px-3">
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-stone-100 text-stone-700">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-stone-100 text-stone-700 inline-block mb-1">
                         {item.category}
                       </span>
+                      <div className="flex items-baseline gap-1">
+                        <span className="font-extrabold text-[#0284C7] text-sm">
+                          {formatVnd(item.price)}
+                        </span>
+                        <span className="text-[11px] text-stone-500">/ {item.unit || "ly"}</span>
+                      </div>
                     </td>
-                    <td className="py-3 px-3">
-                      <span className="font-extrabold text-[#0284C7] text-sm">
-                        {formatVnd(item.price)}
+
+                    {/* 3. Đã bán (Số ly/suất) */}
+                    <td className="py-3 px-3 text-center">
+                      <span className="inline-flex items-center px-3 py-1 rounded-md text-xs font-extrabold bg-blue-50 text-blue-700 border border-blue-200">
+                        {metrics.totalUnitsSold} {item.unit || "ly"}
+                      </span>
+                      <span className="text-[10px] text-stone-500 block mt-1">
+                        {formatVnd(metrics.revenue)}
                       </span>
                     </td>
-                    <td className="py-3 px-3">
-                      <span className="text-stone-600 text-xs line-clamp-1 max-w-xs">{item.note}</span>
-                    </td>
-                    <td className="py-3 px-4 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        {!isArchived ? (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                            Đang phục vụ
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-stone-100 text-stone-600 border border-stone-200">
-                            <Archive size={11} />
-                            Tạm ngưng
-                          </span>
-                        )}
 
+                    {/* 4. Số đơn & số khách */}
+                    <td className="py-3 px-3">
+                      <div className="font-bold text-stone-900 text-xs flex items-center gap-1">
+                        <span>{metrics.totalOrders} đơn</span>
+                      </div>
+                      <div className="text-[11px] text-stone-500 mt-0.5">
+                        {metrics.totalCustomers} khách mua
+                      </div>
+                    </td>
+
+                    {/* 5. Tồn kho & Tình trạng */}
+                    <td className="py-3 px-3">
+                      <div className="flex items-baseline gap-1 mb-1">
+                        <span className={`text-sm font-extrabold ${
+                          isOutOfStock
+                            ? "text-rose-600"
+                            : isLowStock
+                            ? "text-amber-700"
+                            : "text-stone-900"
+                        }`}>
+                          {item.stock}
+                        </span>
+                        <span className="text-xs text-stone-500">{item.unit || "ly"}</span>
+                      </div>
+
+                      {isOutOfStock ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                          <AlertTriangle size={10} /> Hết hàng
+                        </span>
+                      ) : isLowStock ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                          <AlertTriangle size={10} /> Sắp hết (&le;{item.alertThreshold || 10})
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <Check size={10} /> Còn hàng
+                        </span>
+                      )}
+                    </td>
+
+                    {/* 6. Thao tác Quản trị */}
+                    <td className="py-3 px-4 text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        {/* Nút Nhập kho nhanh */}
+                        <button
+                          type="button"
+                          onClick={() => handleOpenQuickStock(item)}
+                          title="Nhập thêm số lượng vào kho"
+                          className="px-2.5 py-1 text-xs font-semibold text-[#0284C7] bg-sky-50 hover:bg-sky-100 border border-sky-200 rounded flex items-center gap-1 transition cursor-pointer"
+                        >
+                          <PackagePlus size={13} />
+                          <span>Nhập kho</span>
+                        </button>
+
+                        {/* Nút Sửa */}
                         <button
                           type="button"
                           onClick={() => handleOpenEdit(item)}
+                          title="Sửa thông tin món"
                           className="px-2.5 py-1 text-xs font-semibold text-stone-700 bg-white hover:bg-stone-100 border border-stone-200 rounded flex items-center gap-1 transition cursor-pointer"
                         >
                           <Pencil size={12} className="text-[#0284C7]" />
                           <span>Sửa</span>
                         </button>
 
+                        {/* Nút Tạm ngưng / Mở bán */}
                         <button
                           type="button"
                           onClick={() => handleToggleStatus(item)}
+                          title={!isArchived ? "Tạm ngưng phục vụ" : "Mở bán lại"}
                           className={`px-2.5 py-1 text-xs font-semibold rounded flex items-center gap-1 transition cursor-pointer ${
                             !isArchived
                               ? "text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200"
@@ -1444,14 +1737,24 @@ function CafeTab() {
                           {!isArchived ? (
                             <>
                               <EyeOff size={12} />
-                              <span>Tạm ngưng</span>
+                              <span className="hidden sm:inline">Ẩn</span>
                             </>
                           ) : (
                             <>
                               <RefreshCw size={12} />
-                              <span>Bán lại</span>
+                              <span className="hidden sm:inline">Bán lại</span>
                             </>
                           )}
+                        </button>
+
+                        {/* Nút Xóa */}
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteItem(item)}
+                          title="Xóa món"
+                          className="p-1 text-rose-600 hover:text-rose-800 hover:bg-rose-50 rounded transition cursor-pointer"
+                        >
+                          <Trash2 size={13} />
                         </button>
                       </div>
                     </td>
@@ -1461,21 +1764,25 @@ function CafeTab() {
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
-      {/* Edit / Add Cafe Modal */}
+      {/* MODAL 1: EDIT / ADD CAFE ITEM WITH INVENTORY ATTRIBUTES */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold text-stone-900">
               {editingItem && menu.some((c) => c.id === editingItem.id)
                 ? `Sửa Món: ${editingItem.name}`
                 : "Thêm Món Café Mới"}
             </DialogTitle>
+            <DialogDescription className="text-xs text-stone-500">
+              Cập nhật thông tin chi tiết món, giá bán và cấu hình tồn kho.
+            </DialogDescription>
           </DialogHeader>
 
           {editingItem && (
-            <form onSubmit={handleSaveItem} className="space-y-4 pt-2">
+            <form onSubmit={handleSaveItem} className="space-y-3.5 pt-2">
               <div>
                 <label className="text-xs font-bold text-stone-700 block mb-1">Tên Món</label>
                 <input
@@ -1516,65 +1823,78 @@ function CafeTab() {
                 </div>
               </div>
 
+              {/* TỒN KHO & ĐƠN VỊ TÍNH */}
+              <div className="p-3 bg-stone-50 border border-stone-200 rounded-lg space-y-3">
+                <div className="text-xs font-bold text-stone-800 flex items-center gap-1.5">
+                  <Boxes size={14} className="text-[#0284C7]" /> Cấu hình Tồn kho & Đơn vị tính
+                </div>
+
+                <div className="grid grid-cols-3 gap-2.5">
+                  <div>
+                    <label className="text-[11px] font-bold text-stone-600 block mb-1">Số lượng tồn</label>
+                    <input
+                      type="number"
+                      value={editingItem.stock ?? 0}
+                      onChange={(e) =>
+                        setEditingItem({
+                          ...editingItem,
+                          stock: Math.max(0, Number(e.target.value)),
+                          initialStock: editingItem.initialStock || Math.max(0, Number(e.target.value)),
+                        })
+                      }
+                      required
+                      min={0}
+                      className="w-full px-2.5 py-1.5 text-xs border border-stone-200 rounded bg-white font-bold"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-bold text-stone-600 block mb-1">Đơn vị tính</label>
+                    <select
+                      value={editingItem.unit || "ly"}
+                      onChange={(e) => setEditingItem({ ...editingItem, unit: e.target.value })}
+                      className="w-full px-2 py-1.5 text-xs border border-stone-200 rounded bg-white font-medium"
+                    >
+                      <option value="ly">Ly</option>
+                      <option value="cốc">Cốc</option>
+                      <option value="tách">Tách</option>
+                      <option value="chai">Chai</option>
+                      <option value="cái">Cái</option>
+                      <option value="phần">Phần</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-bold text-stone-600 block mb-1" title="Ngưỡng cảnh báo sắp hết">
+                      Báo sắp hết (&le;)
+                    </label>
+                    <input
+                      type="number"
+                      value={editingItem.alertThreshold ?? 10}
+                      onChange={(e) =>
+                        setEditingItem({
+                          ...editingItem,
+                          alertThreshold: Math.max(1, Number(e.target.value)),
+                        })
+                      }
+                      required
+                      min={1}
+                      className="w-full px-2.5 py-1.5 text-xs border border-stone-200 rounded bg-white font-semibold text-amber-700"
+                    />
+                  </div>
+                </div>
+              </div>
+
               <div>
-                <label className="text-xs font-bold text-stone-700 block mb-1">Ghi Chú Thành Phần / Hương Vị</label>
-                <select
-                  value={
-                    [
-                      "Đậm vừa · Hạt Arabica Cầu Đất",
-                      "Cà phê sữa dịu · Thơm ngậy",
-                      "Êm mượt · Sữa tươi thanh trùng",
-                      "Bột trà Uji Kyoto · Ít ngọt",
-                      "Thanh mát · Đào giòn sần sật",
-                      "Hạt sen bùi · Lớp foam mặn dịu",
-                      "Cam sành nguyên chất 100%",
-                      "Bơ tươi Đắk Lắk · Sánh béo",
-                      "Vỏ ngàn lớp giòn rụm thơm bơ",
-                      "Nóng giòn · Đủ dinh dưỡng bữa sáng",
-                    ].includes(editingItem.note)
-                      ? editingItem.note
-                      : "custom"
-                  }
-                  onChange={(e) => {
-                    if (e.target.value !== "custom") {
-                      setEditingItem({ ...editingItem, note: e.target.value });
-                    }
-                  }}
-                  className="w-full px-3 py-2 text-xs border border-stone-200 rounded-md focus:ring-2 focus:ring-[#0284C7] focus:outline-none bg-white font-medium"
-                >
-                  <option value="Đậm vừa · Hạt Arabica Cầu Đất">☕ Đậm vừa · Hạt Arabica Cầu Đất</option>
-                  <option value="Cà phê sữa dịu · Thơm ngậy">🥛 Cà phê sữa dịu · Thơm ngậy</option>
-                  <option value="Êm mượt · Sữa tươi thanh trùng">🥛 Êm mượt · Sữa tươi thanh trùng</option>
-                  <option value="Bột trà Uji Kyoto · Ít ngọt">🍵 Bột trà Uji Kyoto · Ít ngọt</option>
-                  <option value="Thanh mát · Đào giòn sần sật">🍑 Thanh mát · Đào giòn sần sật</option>
-                  <option value="Hạt sen bùi · Lớp foam mặn dịu">🪷 Hạt sen bùi · Lớp foam mặn dịu</option>
-                  <option value="Cam sành nguyên chất 100%">🍊 Cam sành nguyên chất 100%</option>
-                  <option value="Bơ tươi Đắk Lắk · Sánh béo">🥑 Bơ tươi Đắk Lắk · Sánh béo</option>
-                  <option value="Vỏ ngàn lớp giòn rụm thơm bơ">🥐 Vỏ ngàn lớp giòn rụm thơm bơ</option>
-                  <option value="Nóng giòn · Đủ dinh dưỡng bữa sáng">🥪 Nóng giòn · Đủ dinh dưỡng bữa sáng</option>
-                  <option value="custom">Ghi chú hương vị khác...</option>
-                </select>
-                {![
-                  "Đậm vừa · Hạt Arabica Cầu Đất",
-                  "Cà phê sữa dịu · Thơm ngậy",
-                  "Êm mượt · Sữa tươi thanh trùng",
-                  "Bột trà Uji Kyoto · Ít ngọt",
-                  "Thanh mát · Đào giòn sần sật",
-                  "Hạt sen bùi · Lớp foam mặn dịu",
-                  "Cam sành nguyên chất 100%",
-                  "Bơ tươi Đắk Lắk · Sánh béo",
-                  "Vỏ ngàn lớp giòn rụm thơm bơ",
-                  "Nóng giòn · Đủ dinh dưỡng bữa sáng",
-                ].includes(editingItem.note) && (
-                  <input
-                    type="text"
-                    value={editingItem.note}
-                    onChange={(e) => setEditingItem({ ...editingItem, note: e.target.value })}
-                    placeholder="VD: Hạt Arabica Cầu Đất · Êm mượt thơm ngậy"
-                    required
-                    className="mt-1.5 w-full px-3 py-1.5 text-xs border border-stone-200 rounded-md focus:ring-2 focus:ring-[#0284C7] focus:outline-none"
-                  />
-                )}
+                <label className="text-xs font-bold text-stone-700 block mb-1">Ghi Chú Hương Vị / Thành Phần</label>
+                <input
+                  type="text"
+                  value={editingItem.note}
+                  onChange={(e) => setEditingItem({ ...editingItem, note: e.target.value })}
+                  placeholder="VD: Đậm vừa · Hạt Arabica Cầu Đất"
+                  required
+                  className="w-full px-3 py-2 text-xs border border-stone-200 rounded-md focus:ring-2 focus:ring-[#0284C7] focus:outline-none"
+                />
               </div>
 
               <div>
@@ -1622,6 +1942,109 @@ function CafeTab() {
               </div>
             </form>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* MODAL 2: QUICK STOCK ADJUSTMENT DIALOG */}
+      <Dialog open={isStockDialogOpen} onOpenChange={setIsStockDialogOpen}>
+        <DialogContent className="max-w-sm w-[95vw] sm:w-full">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold text-stone-900 flex items-center gap-2">
+              <PackagePlus className="text-[#0284C7]" size={18} />
+              Nhập Kho Món: {stockItem?.name}
+            </DialogTitle>
+            <DialogDescription className="text-xs text-stone-500">
+              Tồn kho hiện tại: <b className="text-stone-800">{stockItem?.stock} {stockItem?.unit || "ly"}</b>. Nhập thêm số lượng để cập nhật ngay vào hệ thống.
+            </DialogDescription>
+          </DialogHeader>
+
+          {stockItem && (
+            <form onSubmit={handleConfirmStock} className="space-y-4 pt-2">
+              <div>
+                <label className="text-xs font-bold text-stone-700 block mb-2">Chọn nhanh số lượng nhập thêm:</label>
+                <div className="grid grid-cols-4 gap-2">
+                  {[10, 20, 50, 100].map((amt) => (
+                    <button
+                      type="button"
+                      key={amt}
+                      onClick={() => setStockAddAmount(amt)}
+                      className={`py-1.5 rounded text-xs font-bold border transition cursor-pointer ${
+                        stockAddAmount === amt
+                          ? "bg-[#0284C7] text-white border-[#0284C7]"
+                          : "bg-white text-stone-700 border-stone-200 hover:bg-stone-50"
+                      }`}
+                    >
+                      +{amt}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-stone-700 block mb-1">Hoặc nhập số lượng tùy chỉnh (+/-):</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    value={stockAddAmount}
+                    onChange={(e) => setStockAddAmount(Number(e.target.value))}
+                    required
+                    className="w-full px-3 py-2 text-sm font-bold border border-stone-200 rounded-md focus:ring-2 focus:ring-[#0284C7] focus:outline-none"
+                  />
+                  <span className="text-xs font-semibold text-stone-500 shrink-0">{stockItem.unit || "ly"}</span>
+                </div>
+                <p className="text-[11px] text-stone-500 mt-1">
+                  Sau khi nhập: Tồn kho sẽ là <b className="text-emerald-700">{Math.max(0, stockItem.stock + stockAddAmount)} {stockItem.unit || "ly"}</b>
+                </p>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-stone-100">
+                <button
+                  type="button"
+                  onClick={() => setIsStockDialogOpen(false)}
+                  className="px-3 py-2 text-xs font-semibold text-stone-600 bg-stone-100 hover:bg-stone-200 rounded-md cursor-pointer"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 text-xs font-bold text-white bg-[#0284C7] hover:bg-[#0369A1] rounded-md flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                >
+                  <PackageCheck size={14} /> Xác nhận nhập kho
+                </button>
+              </div>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* MODAL 3: DELETE ITEM CONFIRMATION */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold text-rose-700 flex items-center gap-2">
+              <Trash2 size={18} /> Xác Nhận Xóa Món
+            </DialogTitle>
+            <DialogDescription className="text-xs text-stone-500">
+              Bạn có chắc chắn muốn xóa món <b className="text-stone-900">{deletingItem?.name}</b> khỏi danh mục thực đơn? Toàn bộ lịch sử hóa đơn cũ vẫn sẽ được bảo lưu.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex items-center justify-end gap-2 pt-4">
+            <button
+              type="button"
+              onClick={() => setIsDeleteDialogOpen(false)}
+              className="px-3 py-2 text-xs font-semibold text-stone-600 bg-stone-100 hover:bg-stone-200 rounded-md cursor-pointer"
+            >
+              Hủy bỏ
+            </button>
+            <button
+              type="button"
+              onClick={handleConfirmDelete}
+              className="px-4 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-md flex items-center gap-1.5 cursor-pointer shadow-sm"
+            >
+              <Trash2 size={14} /> Xóa món
+            </button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
@@ -1712,27 +2135,43 @@ function OrdersTab() {
         </div>
       </div>
 
-      {/* Orders Table — Zero Horizontal Scrollbar */}
+      {/* Orders Table — Responsive Horizontal Scroll */}
       <div className="w-full border border-stone-200 rounded-xl overflow-hidden bg-white shadow-2xs">
-        <table className="w-full text-left border-collapse text-xs table-auto">
-          <thead>
-            <tr className="bg-stone-50 border-b border-stone-200 text-stone-700 font-bold uppercase tracking-wider text-[11px]">
-              <th className="py-3.5 px-4">Mã Đơn & Hẹn Lấy</th>
-              <th className="py-3.5 px-3">Khách Hàng & Căn Hộ</th>
-              <th className="py-3.5 px-3">Dịch Vụ & Khối Lượng</th>
-              <th className="py-3.5 px-3">Ưu Đãi & Tổng Tiền</th>
-              <th className="py-3.5 px-3">Trạng Thái</th>
-              <th className="py-3.5 px-4 text-right">Điều Phối Tiến Độ (Chỉ Tiến Không Lùi)</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-stone-100">
-            {filteredOrders.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="text-center py-12 text-stone-400">
-                  Chưa có đơn hàng nào trong sổ cái.
-                </td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse text-xs min-w-[750px] table-auto">
+            <thead>
+              <tr className="bg-stone-50 border-b border-stone-200 text-stone-700 font-bold uppercase tracking-wider text-[11px]">
+                <th className="py-3.5 px-4">Mã Đơn & Hẹn Lấy</th>
+                <th className="py-3.5 px-3">Khách Hàng & Căn Hộ</th>
+                <th className="py-3.5 px-3">Dịch Vụ & Khối Lượng</th>
+                <th className="py-3.5 px-3">Ưu Đãi & Tổng Tiền</th>
+                <th className="py-3.5 px-3">Trạng Thái</th>
+                <th className="py-3.5 px-4 text-right">Điều Phối Tiến Độ (Chỉ Tiến Không Lùi)</th>
               </tr>
-            ) : (
+            </thead>
+            <tbody className="divide-y divide-stone-100">
+              {filteredOrders.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="text-center py-16 px-4">
+                    <div className="max-w-sm mx-auto flex flex-col items-center justify-center text-center">
+                      <div className="w-12 h-12 rounded-full bg-sky-50 text-[#0284C7] flex items-center justify-center mb-3 border border-sky-100">
+                        <Package size={22} />
+                      </div>
+                      <h3 className="text-sm font-bold text-stone-900 mb-1">Sổ cái đơn hàng hiện đang trống</h3>
+                      <p className="text-xs text-stone-500 leading-relaxed mb-4">
+                        Chưa có đơn hàng giặt sấy nào được tạo. Khi cư dân đặt lịch từ App hoặc tại quầy, đơn sẽ tự động xuất hiện tại đây theo thời gian thực.
+                      </p>
+                      <a
+                        href="/dat-lich"
+                        target="_blank"
+                        className="px-4 py-2 bg-[#0284C7] hover:bg-[#0369A1] text-white text-xs font-bold rounded-lg transition inline-flex items-center gap-1.5 shadow-2xs"
+                      >
+                        <Plus size={14} /> Mở giao diện Đặt lịch
+                      </a>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
               filteredOrders.map((o) => {
                 const nextStep = getNextStatus(o.status);
                 const forwardStatuses = getForwardStatuses(o.status);
@@ -1848,18 +2287,19 @@ function OrdersTab() {
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* Modal xác nhận Hủy đơn bảo lưu lịch sử sổ cái */}
       <Dialog open={isCancelDialogOpen} onOpenChange={setIsCancelDialogOpen}>
-        <DialogContent className="sm:max-w-md bg-white border border-stone-200 shadow-2xl p-6">
+        <DialogContent className="sm:max-w-md w-[95vw] sm:w-full bg-white border border-stone-200 shadow-2xl p-6">
           <DialogHeader>
             <DialogTitle className="text-base font-bold text-rose-700 flex items-center gap-2">
               <AlertTriangle size={18} />
               Xác Nhận Hủy Đơn Hàng #{cancellingOrder?.id}
             </DialogTitle>
             <DialogDescription className="text-xs text-stone-500">
-              Đơn hàng sẽ được chuyển sang trạng thái "Hủy đơn" và bảo lưu toàn bộ dữ liệu trên sổ cái kế toán (Immutable Ledger).
+              Đơn hàng sẽ được chuyển sang trạng thái &quot;Hủy đơn&quot; và bảo lưu toàn bộ dữ liệu trên sổ cái kế toán (Immutable Ledger).
             </DialogDescription>
           </DialogHeader>
 
@@ -1922,7 +2362,7 @@ function OrdersTab() {
 }
 
 // ============================================================================
-// 5. VOUCHERS TAB (GIỜ VÀNG & NGÀY ÁP DỤNG — KHÔNG CÓ NÚT XÓA THÙNG RÁC)
+// 5. VOUCHERS TAB (GIỜ VÀNG & NGÀY ÁP DỤNG — ĐỒNG BỘ ĐỘNG THEO ĐƠN HÀNG)
 // ============================================================================
 function VouchersTab() {
   const [vouchers, setVouchers] = useState<VoucherItem[]>([]);
@@ -1944,19 +2384,29 @@ function VouchersTab() {
   };
 
   const handleOpenAdd = () => {
+    const today = new Date();
+    const end = new Date();
+    end.setDate(today.getDate() + 60);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const todayStr = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
+    const endStr = `${end.getFullYear()}-${pad(end.getMonth() + 1)}-${pad(end.getDate())}`;
+
     setEditingVoucher({
       id: `vch-${Date.now()}`,
-      code: "HAPPYHOUR20",
-      title: "GIỜ VÀNG SÁNG SỚM -20K",
-      description: "Giảm ngay 20.000₫ cho đơn giặt sấy gửi trước 11h trưa",
+      code: "GIAMGIA20",
+      title: "ƯU ĐÃI CƯ DÂN VINHOMES -20K",
+      description: "Giảm ngay 20.000₫ cho đơn giặt sấy dịch vụ tiện ích",
       discountType: "fixed",
       discountValue: 20000,
+      maxDiscount: 20000,
       minOrderValue: 69000,
-      startDate: "2026-09-01",
-      endDate: "2026-10-31",
-      activeDays: "weekdays",
-      timeSlot: "morning",
-      usageLimit: 300,
+      startDate: todayStr,
+      endDate: endStr,
+      activeDays: "all",
+      timeSlot: "all_day",
+      timeStart: "07:00",
+      timeEnd: "11:00",
+      usageLimit: 500,
       usedCount: 0,
       isActive: true,
     });
@@ -1966,6 +2416,14 @@ function VouchersTab() {
   const handleOpenEdit = (v: VoucherItem) => {
     setEditingVoucher({ ...v });
     setIsDialogOpen(true);
+  };
+
+  const handleDelete = (v: VoucherItem) => {
+    if (confirm(`Bạn có chắc muốn xóa mã voucher "${v.code}" không?`)) {
+      const updated = deleteVoucher(v.id);
+      setVouchers(updated);
+      toast.success(`Đã xóa ưu đãi: ${v.code}`);
+    }
   };
 
   const handleSaveVoucher = (e: React.FormEvent) => {
@@ -1997,7 +2455,7 @@ function VouchersTab() {
             </span>
           </div>
           <p className="text-xs text-stone-500 mt-1">
-            Điều phối kích cầu cư dân gửi đồ sớm (khung giờ vàng) hoặc ngày cuối tuần, tự động đồng bộ sang ví cư dân.
+            Điều phối kích cầu cư dân gửi đồ sớm (khung giờ vàng) hoặc ngày cuối tuần, tự động thống kê lượt dùng từ đơn hàng thực tế.
           </p>
         </div>
 
@@ -2010,9 +2468,10 @@ function VouchersTab() {
         </button>
       </div>
 
-      {/* Vouchers Table — Zero Horizontal Scrollbar */}
+      {/* Vouchers Table — Responsive Horizontal Scroll */}
       <div className="w-full border border-stone-200 rounded-xl overflow-hidden bg-white shadow-2xs">
-        <table className="w-full text-left border-collapse text-xs table-auto">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse text-xs min-w-[700px] table-auto">
           <thead>
             <tr className="bg-stone-50 border-b border-stone-200 text-stone-700 font-bold uppercase tracking-wider text-[11px]">
               <th className="py-3.5 px-4">Mã & Chương Trình Ưu Đãi</th>
@@ -2029,17 +2488,17 @@ function VouchersTab() {
                   ? `Giảm ${v.discountValue}%`
                   : `Giảm ${formatVnd(v.discountValue)}`;
               const timeSlotText =
-                v.timeSlot === "morning"
-                  ? "Sáng (07h–11h)"
-                  : v.timeSlot === "evening"
-                  ? "Tối (18h–22h)"
-                  : "Cả ngày";
+                v.timeSlot === "custom" && v.timeStart && v.timeEnd
+                  ? `${v.timeStart} – ${v.timeEnd}`
+                  : v.timeSlot === "custom" && v.timeStart
+                  ? `Từ ${v.timeStart}`
+                  : "Cả ngày (07:00 – 22:00)";
               const daysText =
                 v.activeDays === "weekdays"
                   ? "T2 – T6"
-                  : v.activeDays === "weekend" || v.activeDays === "weekends"
-                  ? "Cuối tuần"
-                  : "Tất cả";
+                  : v.activeDays === "weekends" || (v.activeDays as string) === "weekend"
+                  ? "Cuối tuần (T7–CN)"
+                  : "Tất cả các ngày";
 
               return (
                 <tr key={v.id} className="hover:bg-sky-50/40 transition">
@@ -2111,6 +2570,14 @@ function VouchersTab() {
                         <Pencil size={12} className="text-[#0284C7]" />
                         <span>Sửa</span>
                       </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(v)}
+                        className="px-2 py-1 text-xs font-semibold text-rose-600 bg-white hover:bg-rose-50 border border-rose-200 rounded flex items-center gap-1 transition cursor-pointer"
+                        title="Xóa voucher"
+                      >
+                        <Trash2 size={12} />
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -2118,11 +2585,12 @@ function VouchersTab() {
             })}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* Edit Voucher Modal */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold text-stone-900">
               {editingVoucher && vouchers.some((v) => v.id === editingVoucher.id)
@@ -2133,106 +2601,228 @@ function VouchersTab() {
 
           {editingVoucher && (
             <form onSubmit={handleSaveVoucher} className="space-y-4 pt-2">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-bold text-stone-700 block mb-1">Mã Voucher (Code)</label>
+                  <label className="text-xs font-bold text-stone-700 block mb-1">Mã Voucher (Code) *</label>
                   <input
                     type="text"
                     value={editingVoucher.code}
                     onChange={(e) => setEditingVoucher({ ...editingVoucher, code: e.target.value.toUpperCase() })}
                     required
-                    className="w-full px-3 py-2 text-xs border border-stone-200 rounded-md focus:ring-2 focus:ring-[#0284C7] font-mono font-bold"
+                    placeholder="VD: SACHPLUS30"
+                    className="w-full px-3 py-2 text-xs border border-stone-200 rounded-md focus:ring-2 focus:ring-[#0284C7] font-mono font-bold uppercase"
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-bold text-stone-700 block mb-1">Tiêu Đề Chiến Dịch</label>
+                  <label className="text-xs font-bold text-stone-700 block mb-1">Tiêu Đề Chiến Dịch *</label>
                   <input
                     type="text"
                     value={editingVoucher.title}
                     onChange={(e) => setEditingVoucher({ ...editingVoucher, title: e.target.value })}
                     required
+                    placeholder="VD: GIẢM 30% ĐƠN GIẶT"
                     className="w-full px-3 py-2 text-xs border border-stone-200 rounded-md focus:ring-2 focus:ring-[#0284C7]"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-bold text-stone-700 block mb-1">Mức Giảm (VNĐ hoặc %)</label>
-                  <input
-                    type="number"
-                    value={editingVoucher.discountValue}
-                    onChange={(e) => setEditingVoucher({ ...editingVoucher, discountValue: Number(e.target.value) })}
-                    required
-                    className="w-full px-3 py-2 text-xs border border-stone-200 rounded-md focus:ring-2 focus:ring-[#0284C7] font-bold text-[#0284C7]"
-                  />
+              <div>
+                <label className="text-xs font-bold text-stone-700 block mb-1">Mô Tả Quyền Lợi & Điều Kiện</label>
+                <input
+                  type="text"
+                  value={editingVoucher.description || ""}
+                  onChange={(e) => setEditingVoucher({ ...editingVoucher, description: e.target.value })}
+                  placeholder="VD: Giảm 30% (tối đa 50.000₫) cho đơn giặt sấy từ 100.000₫"
+                  className="w-full px-3 py-2 text-xs border border-stone-200 rounded-md focus:ring-2 focus:ring-[#0284C7]"
+                />
+              </div>
+
+              {/* Discount Type & Values */}
+              <div className="p-3 bg-stone-50 rounded-lg border border-stone-200 space-y-3">
+                <div className="text-xs font-bold text-stone-800 flex items-center gap-1.5">
+                  <Tag size={14} className="text-[#0284C7]" /> Mức Giảm & Điều Kiện Đơn Hàng
                 </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-semibold text-stone-600 block mb-1">Hình Thức Giảm</label>
+                    <select
+                      value={editingVoucher.discountType || "percent"}
+                      onChange={(e) => setEditingVoucher({ ...editingVoucher, discountType: e.target.value as "percent" | "fixed" })}
+                      className="w-full px-3 py-2 text-xs border border-stone-200 rounded-md bg-white font-medium"
+                    >
+                      <option value="percent">Giảm theo % (Phần trăm)</option>
+                      <option value="fixed">Giảm số tiền cố định (VNĐ)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-stone-600 block mb-1">
+                      {editingVoucher.discountType === "percent" ? "Mức Giảm (%) *" : "Số Tiền Giảm (VNĐ) *"}
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={editingVoucher.discountType === "percent" ? 100 : 10000000}
+                      value={editingVoucher.discountValue}
+                      onChange={(e) => setEditingVoucher({ ...editingVoucher, discountValue: Number(e.target.value) })}
+                      required
+                      className="w-full px-3 py-2 text-xs border border-stone-200 rounded-md focus:ring-2 focus:ring-[#0284C7] font-bold text-[#0284C7] bg-white"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-semibold text-stone-600 block mb-1">Đơn Tối Thiểu (VNĐ) *</label>
+                    <input
+                      type="number"
+                      min={0}
+                      step={1000}
+                      value={editingVoucher.minOrderValue}
+                      onChange={(e) => setEditingVoucher({ ...editingVoucher, minOrderValue: Number(e.target.value) })}
+                      required
+                      className="w-full px-3 py-2 text-xs border border-stone-200 rounded-md focus:ring-2 focus:ring-[#0284C7] bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-stone-600 block mb-1">
+                      {editingVoucher.discountType === "percent" ? "Giảm Tối Đa (VNĐ) *" : "Giảm Tối Đa"}
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      step={1000}
+                      value={editingVoucher.maxDiscount || editingVoucher.discountValue}
+                      onChange={(e) => setEditingVoucher({ ...editingVoucher, maxDiscount: Number(e.target.value) })}
+                      className="w-full px-3 py-2 text-xs border border-stone-200 rounded-md focus:ring-2 focus:ring-[#0284C7] bg-white"
+                      placeholder="Không giới hạn nếu để trống"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Date & Time Schedule Box */}
+              <div className="p-3 bg-sky-50/60 rounded-lg border border-sky-200 space-y-3">
+                <div className="text-xs font-bold text-[#0369A1] flex items-center gap-1.5">
+                  <Calendar size={14} /> Chỉnh Ngày Giờ & Thời Hạn Hiệu Lực
+                </div>
+
+                {/* Start Date & End Date */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-semibold text-stone-700 block mb-1">Ngày Bắt Đầu *</label>
+                    <input
+                      type="date"
+                      value={editingVoucher.startDate}
+                      onChange={(e) => setEditingVoucher({ ...editingVoucher, startDate: e.target.value })}
+                      required
+                      className="w-full px-3 py-2 text-xs border border-stone-300 rounded-md bg-white font-medium cursor-pointer"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-stone-700 block mb-1">Ngày Hết Hạn *</label>
+                    <input
+                      type="date"
+                      value={editingVoucher.endDate}
+                      onChange={(e) => setEditingVoucher({ ...editingVoucher, endDate: e.target.value })}
+                      required
+                      className="w-full px-3 py-2 text-xs border border-stone-300 rounded-md bg-white font-medium cursor-pointer"
+                    />
+                  </div>
+                </div>
+
+                {/* Time slot & Days of week */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <div>
+                    <label className="text-xs font-semibold text-stone-700 block mb-1">Khung Giờ Trong Ngày</label>
+                    <select
+                      value={editingVoucher.timeSlot}
+                      onChange={(e) => setEditingVoucher({ ...editingVoucher, timeSlot: e.target.value as "all_day" | "custom" })}
+                      className="w-full px-3 py-2 text-xs border border-stone-300 rounded-md bg-white cursor-pointer font-medium"
+                    >
+                      <option value="all_day">Cả ngày (07:00 – 22:00)</option>
+                      <option value="custom">Giờ vàng tùy chỉnh (Custom)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-stone-700 block mb-1">Ngày Áp Dụng Trong Tuần</label>
+                    <select
+                      value={editingVoucher.activeDays}
+                      onChange={(e) => setEditingVoucher({ ...editingVoucher, activeDays: e.target.value as "all" | "weekdays" | "weekends" })}
+                      className="w-full px-3 py-2 text-xs border border-stone-300 rounded-md bg-white cursor-pointer font-medium"
+                    >
+                      <option value="all">Tất cả các ngày (T2 – CN)</option>
+                      <option value="weekdays">Chỉ ngày trong tuần (T2 – T6)</option>
+                      <option value="weekends">Chỉ cuối tuần (Thứ 7 & Chủ Nhật)</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Custom Time Pickers */}
+                {editingVoucher.timeSlot === "custom" && (
+                  <div className="grid grid-cols-2 gap-3 bg-amber-50 p-2.5 rounded-md border border-amber-200">
+                    <div>
+                      <label className="text-xs font-bold text-amber-900 block mb-1">Giờ Bắt Đầu</label>
+                      <input
+                        type="time"
+                        value={editingVoucher.timeStart || "07:00"}
+                        onChange={(e) => setEditingVoucher({ ...editingVoucher, timeStart: e.target.value })}
+                        className="w-full px-3 py-1.5 text-xs border border-amber-300 rounded bg-white font-mono cursor-pointer"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-amber-900 block mb-1">Giờ Kết Thúc</label>
+                      <input
+                        type="time"
+                        value={editingVoucher.timeEnd || "11:00"}
+                        onChange={(e) => setEditingVoucher({ ...editingVoucher, timeEnd: e.target.value })}
+                        className="w-full px-3 py-1.5 text-xs border border-amber-300 rounded bg-white font-mono cursor-pointer"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Usage Limit & Status */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
                 <div>
-                  <label className="text-xs font-bold text-stone-700 block mb-1">Đơn Tối Thiểu (VNĐ)</label>
+                  <label className="text-xs font-bold text-stone-700 block mb-1">Tổng Lượt Sử Dụng Tối Đa</label>
                   <input
                     type="number"
-                    value={editingVoucher.minOrderValue}
-                    onChange={(e) => setEditingVoucher({ ...editingVoucher, minOrderValue: Number(e.target.value) })}
+                    min={1}
+                    value={editingVoucher.usageLimit}
+                    onChange={(e) => setEditingVoucher({ ...editingVoucher, usageLimit: Number(e.target.value) })}
                     required
+                    placeholder="VD: 500"
                     className="w-full px-3 py-2 text-xs border border-stone-200 rounded-md focus:ring-2 focus:ring-[#0284C7]"
                   />
                 </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-bold text-stone-700 block mb-1">Khung Giờ Vàng</label>
-                  <select
-                    value={editingVoucher.timeSlot}
-                    onChange={(e) => setEditingVoucher({ ...editingVoucher, timeSlot: e.target.value as any })}
-                    className="w-full px-3 py-2 text-xs border border-stone-200 rounded-md bg-white"
-                  >
-                    <option value="all_day">Cả ngày (07:00 – 22:00)</option>
-                    <option value="morning">Giờ vàng sáng (07:00 – 11:00)</option>
-                    <option value="afternoon">Giờ vàng chiều (13:00 – 17:00)</option>
-                    <option value="evening">Giờ vàng tối (18:00 – 22:00)</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-stone-700 block mb-1">Ngày Trong Tuần</label>
-                  <select
-                    value={editingVoucher.activeDays}
-                    onChange={(e) => setEditingVoucher({ ...editingVoucher, activeDays: e.target.value as any })}
-                    className="w-full px-3 py-2 text-xs border border-stone-200 rounded-md bg-white"
-                  >
-                    <option value="all">Tất cả các ngày</option>
-                    <option value="weekdays">Chỉ ngày trong tuần (T2 – T6)</option>
-                    <option value="weekend">Chỉ cuối tuần (T7 & CN)</option>
-                  </select>
+                <div className="pt-4">
+                  <label className="flex items-center gap-2 text-xs font-bold text-stone-700 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={editingVoucher.isActive}
+                      onChange={(e) => setEditingVoucher({ ...editingVoucher, isActive: e.target.checked })}
+                      className="w-4 h-4 text-[#0284C7] rounded cursor-pointer"
+                    />
+                    <span>Đang kích hoạt chiến dịch</span>
+                  </label>
                 </div>
               </div>
 
-              <div className="flex items-center justify-between pt-2">
-                <label className="flex items-center gap-2 text-xs font-bold text-stone-700 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={editingVoucher.isActive}
-                    onChange={(e) => setEditingVoucher({ ...editingVoucher, isActive: e.target.checked })}
-                    className="w-4 h-4 text-[#0284C7] rounded"
-                  />
-                  <span>Đang kích hoạt chiến dịch</span>
-                </label>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setIsDialogOpen(false)}
-                    className="px-3 py-2 text-xs font-semibold text-stone-600 bg-stone-100 hover:bg-stone-200 rounded-md cursor-pointer"
-                  >
-                    Hủy bỏ
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-4 py-2 text-xs font-bold text-white bg-[#0284C7] hover:bg-[#0369A1] rounded-md flex items-center gap-1.5 shadow-2xs cursor-pointer"
-                  >
-                    <Save size={14} /> Lưu ưu đãi
-                  </button>
-                </div>
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-stone-100">
+                <button
+                  type="button"
+                  onClick={() => setIsDialogOpen(false)}
+                  className="px-4 py-2 text-xs font-semibold text-stone-600 bg-stone-100 hover:bg-stone-200 rounded-md cursor-pointer transition"
+                >
+                  Hủy bỏ
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 text-xs font-bold text-white bg-[#0284C7] hover:bg-[#0369A1] rounded-md flex items-center gap-1.5 shadow-sm cursor-pointer transition"
+                >
+                  <Save size={14} /> Lưu ưu đãi
+                </button>
               </div>
             </form>
           )}

@@ -266,7 +266,7 @@ export default function OrdersPage() {
 
   const stageIndex = useMemo(() => {
     if (!selected) return 0;
-    const s = selected.status;
+    const s = selected.status as string;
     if (s === "Hoàn tất" || s === "Đã giao tận cửa" || s === "Đã giao") return 6;
     if (s === "Đang giao" || s === "Đang giao hàng") return 6;
     if (s === "QC & đóng gói" || s === "QC & Đóng gói") return 5;
@@ -416,8 +416,13 @@ export default function OrdersPage() {
             {/* Mobile Order Cards List (< 640px) */}
             <div className="block sm:hidden space-y-3 mt-3">
               {visible.length === 0 ? (
-                <div className="text-center py-10 text-slate-500 text-xs bg-slate-50 rounded-lg border border-dashed border-slate-200">
-                  Không tìm thấy đơn giặt phù hợp với từ khóa & bộ lọc.
+                <div className="text-center py-12 px-4 text-slate-500 text-xs bg-slate-50 rounded-xl border border-dashed border-slate-200 flex flex-col items-center">
+                  <PackageSearch size={36} className="text-slate-300 mb-2" />
+                  <p className="font-bold text-slate-800 text-sm">Chưa có đơn hàng nào</p>
+                  <p className="text-[11px] text-slate-500 mt-1 mb-3">Bạn chưa đặt đơn giặt sấy nào hoặc không tìm thấy theo bộ lọc.</p>
+                  <Link href="/dat-lich" className="px-3.5 py-1.5 bg-[#0284C7] text-white text-xs font-bold rounded-md inline-flex items-center gap-1 shadow-2xs">
+                    <Plus size={13} /> Đặt đơn giặt mới
+                  </Link>
                 </div>
               ) : (
                 visible.map((order) => {
@@ -497,8 +502,15 @@ export default function OrdersPage() {
                 <TableBody>
                   {visible.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center py-10 text-slate-500 text-xs">
-                        Không tìm thấy đơn giặt phù hợp với từ khóa & bộ lọc.
+                      <TableCell colSpan={5} className="text-center py-14 text-slate-500 text-xs">
+                        <div className="flex flex-col items-center justify-center max-w-sm mx-auto">
+                          <PackageSearch size={36} className="text-slate-300 mb-2" />
+                          <p className="font-bold text-slate-800 text-sm">Chưa có đơn hàng giặt sấy nào</p>
+                          <p className="text-xs text-slate-400 mt-1 mb-4">Sẵn sàng nhận đồ giặt tận cửa hoặc gửi tại quầy Shophouse SH-08.</p>
+                          <Link href="/dat-lich" className="px-4 py-2 bg-[#0284C7] text-white text-xs font-bold rounded-md inline-flex items-center gap-1.5 shadow-sm">
+                            <Plus size={14} /> Đặt lịch giặt sấy mới
+                          </Link>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ) : (

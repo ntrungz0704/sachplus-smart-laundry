@@ -647,7 +647,7 @@ export default function Home() {
                   ))}
                 </div>
                 <p className="text-stone-700 text-sm italic leading-relaxed mb-4">
-                  "{review.quote}"
+                  &ldquo;{review.quote}&rdquo;
                 </p>
                 <div className="border-t border-stone-100 pt-3">
                   <strong className="text-stone-900 text-sm block">{review.author}</strong>

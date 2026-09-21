@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -31,7 +31,7 @@ import {
 } from "lucide-react";
 import { SiteHeader } from "@/components/sachplus/site-header";
 import { SiteFooter } from "@/components/sachplus/site-footer";
-import { formatVnd, serviceCatalog } from "@/lib/sachplus-data";
+import { formatVnd, serviceCatalog, getLaundryOrders, getCafeMenu } from "@/lib/sachplus-data";
 import { LiveTrackingStage } from "@/components/sachplus/live-tracking-stage";
 
 const serviceIcons = [Shirt, Sparkles, BedDouble, ShoppingBag];
@@ -45,6 +45,53 @@ const processSteps = [
 
 export default function Home() {
   const [activeFloor, setActiveFloor] = useState<"ground" | "first">("ground");
+  const [ecoPoints, setEcoPoints] = useState(710);
+  const [orderCount, setOrderCount] = useState(420);
+  const [cafeShowcase, setCafeShowcase] = useState<any[]>([
+    {
+      num: "01",
+      tag: "CÀ PHÊ SỮA DỊU",
+      name: "Bạc xỉu Sạch+",
+      price: "35.000₫",
+      desc: "Cà phê sữa dịu thơm ngậy, hạt Arabica Cầu Đất nguyên chất",
+      image: "https://images.unsplash.com/photo-1461023058943-07fcbe16d735?w=200&auto=format&fit=crop&q=80",
+    },
+    {
+      num: "02",
+      tag: "MATCHA NHẬT · SỮA TƯƠI",
+      name: "Matcha Latte",
+      price: "39.000₫",
+      desc: "Bột trà xanh Uji Kyoto hảo hạng & sữa tươi thanh trùng ít ngọt",
+      image: "https://images.unsplash.com/photo-1515823064-d6e0c04616a7?w=200&auto=format&fit=crop&q=80",
+    },
+    {
+      num: "03",
+      tag: "NƯỚNG NÓNG TRONG NGÀY",
+      name: "Croissant bơ Pháp",
+      price: "32.000₫",
+      desc: "Vỏ ngàn lớp giòn rụm, nướng thơm lừng bơ hảo hạng mỗi sáng",
+      image: "https://images.unsplash.com/photo-1555507036-ab1f4038024a?w=200&auto=format&fit=crop&q=80",
+    },
+  ]);
+
+  useEffect(() => {
+    const orders = getLaundryOrders();
+    const pts = orders.filter(o => o.status === 'Hoàn tất').reduce((sum, o) => sum + Math.floor(o.total / 1000), 0);
+    if (pts > 0) setEcoPoints(pts);
+    if (orders.length > 0) setOrderCount(Math.max(420, orders.length));
+    
+    const menu = getCafeMenu();
+    if (menu.length > 0) {
+      setCafeShowcase(menu.slice(0, 3).map((item, idx) => ({
+        num: `0${idx + 1}`,
+        tag: item.category.toUpperCase(),
+        name: item.name,
+        price: formatVnd(item.price),
+        desc: item.note,
+        image: item.image,
+      })));
+    }
+  }, []);
 
   return (
     <main className="overflow-x-hidden">
@@ -477,32 +524,7 @@ export default function Home() {
         </div>
 
         <div className="space-y-3.5 w-full max-w-lg mx-auto lg:mx-0">
-          {[
-            {
-              num: "01",
-              tag: "CÀ PHÊ SỮA DỊU",
-              name: "Bạc xỉu Sạch+",
-              price: "35.000₫",
-              desc: "Cà phê sữa dịu thơm ngậy, hạt Arabica Cầu Đất nguyên chất",
-              image: "https://images.unsplash.com/photo-1461023058943-07fcbe16d735?w=200&auto=format&fit=crop&q=80",
-            },
-            {
-              num: "02",
-              tag: "MATCHA NHẬT · SỮA TƯƠI",
-              name: "Matcha Latte",
-              price: "39.000₫",
-              desc: "Bột trà xanh Uji Kyoto hảo hạng & sữa tươi thanh trùng ít ngọt",
-              image: "https://images.unsplash.com/photo-1515823064-d6e0c04616a7?w=200&auto=format&fit=crop&q=80",
-            },
-            {
-              num: "03",
-              tag: "NƯỚNG NÓNG TRONG NGÀY",
-              name: "Croissant bơ Pháp",
-              price: "32.000₫",
-              desc: "Vỏ ngàn lớp giòn rụm, nướng thơm lừng bơ hảo hạng mỗi sáng",
-              image: "https://images.unsplash.com/photo-1555507036-ab1f4038024a?w=200&auto=format&fit=crop&q=80",
-            },
-          ].map((item) => (
+          {cafeShowcase.map((item) => (
             <article
               key={item.num}
               className="flex items-center gap-4 p-3.5 bg-white border border-slate-200 rounded-lg shadow-sm hover:shadow-md hover:border-[#0284C7]/40 transition-all group"

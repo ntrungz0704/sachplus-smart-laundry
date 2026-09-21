@@ -129,12 +129,18 @@ function BookingContent() {
   }, []);
 
   function getSlotCount(timeRange: string): number {
-    const today = new Date().toLocaleDateString('vi-VN');
-    const checkDate = date || today;
+    // Convert date from YYYY-MM-DD to DD/MM/YYYY format to match order data
+    const formatDate = (d: string) => {
+      if (!d) return '';
+      if (d.includes('/')) return d; // already DD/MM/YYYY
+      const [y, m, day] = d.split('-');
+      return `${day}/${m}/${y}`;
+    };
+    const today = new Date();
+    const todayStr = `${today.getDate().toString().padStart(2,'0')}/${(today.getMonth()+1).toString().padStart(2,'0')}/${today.getFullYear()}`;
+    const checkDate = date ? formatDate(date) : todayStr;
     return slotOrders.filter(o => {
-      const orderDate = o.pickupDate;
-      const matches = orderDate === checkDate && o.pickupTime === timeRange;
-      return matches;
+      return o.pickupDate === checkDate && o.pickupTime === timeRange;
     }).length;
   }
 

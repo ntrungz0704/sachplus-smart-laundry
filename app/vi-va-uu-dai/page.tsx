@@ -110,7 +110,7 @@ export default function WalletPage() {
                 <span className="text-white font-bold tracking-wider">VÍ SẠCH+ PAY</span>
               </div>
               <span className="text-xs bg-[#0284C7]/20 text-[#0284C7] px-2.5 py-1 rounded-full font-bold border border-[#0284C7]/30">
-                HỘI VIÊN VÀNG
+                HỘI VIÊN {points >= 1000 ? "KIM CƯƠNG" : points >= 500 ? "VÀNG" : points >= 200 ? "BẠC" : "ĐỒNG"}
               </span>
             </div>
 
@@ -126,7 +126,7 @@ export default function WalletPage() {
               </button>
             </div>
 
-            <small>•••• 2409 · Cư dân Vinhomes Sài Gòn Park · Bảo mật bởi Sạch+ Care</small>
+            <small>•••• {(() => { const u = getCurrentUser(); return u?.phone?.slice(-4) || "0000"; })()} · Cư dân Vinhomes Sài Gòn Park · Bảo mật bởi Sạch+ Care</small>
           </div>
 
           {/* Lịch sử giao dịch */}
@@ -295,11 +295,11 @@ export default function WalletPage() {
         </aside>
       </section>
 
-      {/* DIALOG NẠP TIỀN VIETQR ĐỘNG */}
+      {/* DIALOG NẠP TIỀN VIETQR ĐỘNG — SEPAY REAL */}
       <Dialog open={depositOpen} onOpenChange={setDepositOpen}>
         <DialogContent className="sm:max-w-[420px] p-6 bg-white rounded-md">
           <DialogHeader>
-            <p className="kicker text-[#0284C7]">VIETQR NAPAS 24/7</p>
+            <p className="kicker text-[#0284C7]">VIETQR NAPAS 24/7 · SEPAY</p>
             <DialogTitle className="text-2xl font-bold tracking-tight">Nạp Ví Sạch+ Tức Thì</DialogTitle>
             <DialogDescription className="text-xs text-stone-500">
               Quét mã QR từ bất kỳ ứng dụng ngân hàng nào (Vietcombank, MB, Techcombank...).
@@ -333,42 +333,57 @@ export default function WalletPage() {
             </div>
           </div>
 
-          {/* Khung mã QR VietQR */}
-          <div className="p-4 bg-stone-50 border border-stone-200 rounded-md flex flex-col items-center justify-center my-2 text-center">
-            <div className="w-48 h-48 bg-white p-2 border border-stone-200 rounded-md flex items-center justify-center shadow-inner relative">
-              <img
-                src={`https://api.vietqr.io/image/970423-8888668899-compact2.jpg?amount=${depositAmount}&addInfo=NAP%20SACHPLUS%200901234567&accountName=SACH%20PLUS%20VINHOMES`}
-                alt="Mã VietQR nạp tiền"
-                className="w-full h-full object-contain"
-                onError={(e) => {
-                  // Fallback nếu ảnh không load
-                  (e.target as HTMLElement).style.display = "none";
-                }}
-              />
-              <QrCode size={110} className="text-[#0369A1] absolute -z-10" />
-            </div>
+          {/* Khung mã QR VietQR — SePay Real */}
+          {(() => {
+            const user = getCurrentUser();
+            const txCode = `SP${Date.now().toString().slice(-8)}`;
+            const transferContent = `SEVQR NAP ${txCode}`;
+            return (
+              <div className="p-4 bg-stone-50 border border-stone-200 rounded-md flex flex-col items-center justify-center my-2 text-center">
+                <div className="w-48 h-48 bg-white p-2 border border-stone-200 rounded-md flex items-center justify-center shadow-inner relative">
+                  <img
+                    src={`https://qr.sepay.vn/img?acc=108875292318&bank=ICB&amount=${depositAmount}&des=${encodeURIComponent(transferContent)}&template=compact`}
+                    alt="Mã VietQR nạp tiền — SePay"
+                    className="w-full h-full object-contain"
+                    onError={(e) => {
+                      (e.target as HTMLElement).style.display = "none";
+                    }}
+                  />
+                  <QrCode size={110} className="text-[#0369A1] absolute -z-10" />
+                </div>
 
-            <div className="w-full mt-3 space-y-1 text-xs text-left bg-white p-3 rounded-md border border-stone-200 font-mono">
-              <div className="flex justify-between">
-                <span className="text-stone-500">Ngân hàng:</span>
-                <strong>TPBank (Tiên Phong)</strong>
+                <div className="w-full mt-3 space-y-1 text-xs text-left bg-white p-3 rounded-md border border-stone-200 font-mono">
+                  <div className="flex justify-between">
+                    <span className="text-stone-500">Ngân hàng:</span>
+                    <strong className="text-[#C8102E]">VietinBank (CTG)</strong>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-stone-500">Số tài khoản:</span>
+                    <span className="font-bold flex items-center gap-1">
+                      1088 7529 2318
+                      <Copy size={13} className="cursor-pointer text-[#0369A1]" onClick={() => copyContent("108875292318")} />
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-stone-500">Chủ TK:</span>
+                    <strong>NGUYEN TRUNG</strong>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-stone-500">Số tiền:</span>
+                    <strong className="text-[#0369A1]">{formatVnd(depositAmount)}</strong>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-stone-500">Nội dung CK:</span>
+                    <span className="font-bold text-[#0369A1] flex items-center gap-1">
+                      {transferContent}
+                      <Copy size={13} className="cursor-pointer text-[#0369A1]" onClick={() => copyContent(transferContent)} />
+                    </span>
+                  </div>
+                </div>
+                <p className="text-[10px] text-stone-400 mt-2 italic">Powered by SePay · VietQR NAPAS 24/7</p>
               </div>
-              <div className="flex justify-between">
-                <span className="text-stone-500">Số tài khoản:</span>
-                <span className="font-bold flex items-center gap-1">
-                  8888 6688 99
-                  <Copy size={13} className="cursor-pointer text-[#0369A1]" onClick={() => copyContent("8888668899")} />
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-stone-500">Nội dung CK:</span>
-                <span className="font-bold text-[#0369A1] flex items-center gap-1">
-                  NAP SACHPLUS 0901
-                  <Copy size={13} className="cursor-pointer text-[#0369A1]" onClick={() => copyContent("NAP SACHPLUS 0901")} />
-                </span>
-              </div>
-            </div>
-          </div>
+            );
+          })()}
 
           <div className="flex justify-end gap-2 mt-2">
             <button
@@ -398,14 +413,14 @@ export default function WalletPage() {
           </DialogHeader>
           <div className="space-y-3 text-xs text-stone-600 leading-relaxed my-2">
             <div className="p-3 bg-[#E0F2FE] rounded-md border border-[#E2E8F0]">
-              <strong className="text-[#0284C7] block text-sm mb-1">💧 Công thức tính Nước tiết kiệm (142L):</strong>
+              <strong className="text-[#0284C7] block text-sm mb-1">💧 Công thức tính Nước tiết kiệm ({Math.round(points * 0.2)} Lít):</strong>
               <p>Mỗi mẻ giặt máy gia thông thường: tiêu hao ~70 Lít nước.<br />
               Máy công nghiệp tại Sạch+ với cảm biến tải trọng: tiêu hao ~47.2 Lít nước.<br />
-              → Tiết kiệm trung bình: <strong>22.8 Lít / mẻ giặt</strong>. Với 6.2 mẻ giặt tháng này của bạn = 142 Lít.</p>
+              → Tiết kiệm trung bình: <strong>22.8 Lít / mẻ giặt</strong>. Tính từ điểm tích lũy ({points} điểm × 0.2) = {Math.round(points * 0.2)} Lít.</p>
             </div>
 
             <div className="p-3 bg-[#F0F9FF] rounded-md border border-[#F0F9FF]">
-              <strong className="text-[#0369A1] block text-sm mb-1">⚡ Điện năng giảm tải (4.2 kWh):</strong>
+              <strong className="text-[#0369A1] block text-sm mb-1">⚡ Điện năng giảm tải ({(points * 0.006).toFixed(1)} kWh):</strong>
               <p>Hệ thống động cơ Inverter biến tần trực tiếp giảm 35% điện năng tiêu hao so với dòng máy giặt dây curoa truyền thống.</p>
             </div>
 

@@ -195,7 +195,11 @@ export default function OrdersPage() {
       setCancelDialogOpen(false);
       setCustomCancelReason("");
       const refreshed = getLaundryOrders();
-      setOrders(refreshed);
+      const user = getCurrentUser();
+      const filtered = user && user.role === 'customer'
+        ? refreshed.filter(o => o.customerPhone === user.phone)
+        : refreshed;
+      setOrders(filtered);
       const current = refreshed.find((o) => o.id === selected.id);
       if (current) setSelected(current);
     } else {
@@ -209,7 +213,7 @@ export default function OrdersPage() {
       const user = getCurrentUser();
       const userOrders = user && user.role === 'customer'
         ? data.filter(o => o.customerPhone === user.phone || o.customerName?.includes(user.name?.split(' ').pop() || ''))
-        : data;
+        : user ? data : []; // Admin/Staff see all, guest sees nothing
       setOrders(userOrders);
       setComplaintList(getOrderComplaints());
 
@@ -777,7 +781,7 @@ export default function OrdersPage() {
                 <Truck size={18} className="text-[#0284C7] shrink-0" />
                 <div>
                   <span className="text-slate-500 block text-[11px]">Dự kiến giao lại tận căn hộ:</span>
-                  <strong className="text-slate-800">Hôm nay lúc 17:30 · Shophouse SH-08</strong>
+                  <strong className="text-slate-800">{selected.pickupDate} lúc 17:30 · {selected.customerAddress || 'Shophouse SH-08'}</strong>
                 </div>
               </div>
 

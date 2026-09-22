@@ -41,8 +41,6 @@ const processSteps = [
 
 export default function Home() {
   const [activeFloor, setActiveFloor] = useState<"ground" | "first">("ground");
-  const [ecoPoints, setEcoPoints] = useState(710);
-  const [orderCount, setOrderCount] = useState(420);
   const [cafeShowcase, setCafeShowcase] = useState<any[]>([
     {
       num: "01",

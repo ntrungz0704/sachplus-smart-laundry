@@ -36,7 +36,22 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ isPaid: false, error: `SePay API error: ${res.status}` });
     }
 
-    const data = await res.json();
+    const data = (await res.json()) as {
+      transactions?: Array<{
+        id: string | number;
+        transferType: string;
+        transferAmount: number;
+        transactionDate: string;
+        content: string;
+      }>;
+      data?: Array<{
+        id: string | number;
+        transferType: string;
+        transferAmount: number;
+        transactionDate: string;
+        content: string;
+      }>;
+    };
     const transactions = data?.transactions || data?.data || [];
 
     // Tìm giao dịch tiền vào (transferType === "in") khớp mã và số tiền
@@ -58,7 +73,7 @@ export async function GET(req: NextRequest) {
           }
         : null,
     });
-  } catch (err) {
+  } catch (_err) {
     return NextResponse.json({ isPaid: false, error: "Network error" }, { status: 500 });
   }
 }

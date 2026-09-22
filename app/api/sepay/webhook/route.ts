@@ -18,19 +18,35 @@ import { NextRequest, NextResponse } from "next/server";
  *   "referenceCode": "FT260921000123"
  * }
  */
+import { SYSTEM_CONFIG } from "@/lib/sachplus-data";
+
+export interface SepayWebhookPayload {
+  id?: number;
+  gateway?: string;
+  transactionDate?: string;
+  accountNumber?: string;
+  code?: string;
+  content?: string;
+  transferType?: "in" | "out" | string;
+  transferAmount?: number;
+  referenceCode?: string;
+}
+
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
+    const body = (await req.json()) as SepayWebhookPayload;
 
     // Validate: chỉ xử lý tiền vào tài khoản đúng
-    if (body.transferType !== "in" || body.accountNumber !== "108875292318") {
+    if (body?.transferType !== "in" || body?.accountNumber !== SYSTEM_CONFIG.vietqr.accountNumber) {
       return NextResponse.json({ success: true, skipped: true });
     }
 
     const { code, transferAmount, transactionDate, referenceCode, content } = body;
 
     // Log giao dịch (trong production sẽ ghi vào database)
-    console.log(`[SePay Webhook] ✅ Nhận ${transferAmount.toLocaleString("vi-VN")}₫ | Mã: ${code} | Ref: ${referenceCode} | Content: ${content} | Time: ${transactionDate}`);
+    console.log(
+      `[SePay Webhook] ✅ Nhận ${(transferAmount || 0).toLocaleString("vi-VN")}₫ | Mã: ${code || ""} | Ref: ${referenceCode || ""} | Content: ${content || ""} | Time: ${transactionDate || ""}`
+    );
 
     // TODO: Khi có database thực, cập nhật trạng thái đơn hàng / ví cư dân tại đây
     // Ví dụ: await db.walletTopup.create({ code, amount: transferAmount, paidAt: transactionDate })

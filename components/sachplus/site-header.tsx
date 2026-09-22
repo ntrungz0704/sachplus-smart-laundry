@@ -88,12 +88,17 @@ export function SiteHeader({ active }: { active?: string }) {
     window.location.href = "/dang-nhap";
   };
 
+  const visibleNav = nav.filter(([label]) => {
+    if (user?.role === "admin" && label === "Đặt lịch") return false;
+    return true;
+  });
+
   return (
     <header className="site-header">
       <Logo size="md" href="/" />
 
       <nav aria-label="Điều hướng chính">
-        {nav.map(([label, href]) => {
+        {visibleNav.map(([label, href]) => {
           const isActive = isNavActive(href, label);
           return (
             <Link
@@ -265,10 +270,28 @@ export function SiteHeader({ active }: { active?: string }) {
 
 
 
-        {/* Direct Link to /book Page - NO BOX/MODAL */}
-        <a href="/dat-lich" className="header-cta cursor-pointer">
-          Đặt lịch lấy đồ
-        </a>
+        {/* Role-based Header CTA */}
+        {user?.role === "admin" ? (
+          <a
+            href="/admin"
+            className="header-cta cursor-pointer bg-indigo-600 hover:bg-indigo-700 text-white font-bold"
+            title="Truy cập bảng điều khiển quản trị viên"
+          >
+            Quản trị Admin
+          </a>
+        ) : user?.role === "staff" ? (
+          <a
+            href="/quay/quan-ly-don"
+            className="header-cta cursor-pointer bg-blue-600 hover:bg-blue-700 text-white font-bold"
+            title="Vào ca trực vận hành quầy"
+          >
+            Cổng Vận Hành
+          </a>
+        ) : (
+          <a href="/dat-lich" className="header-cta cursor-pointer">
+            Đặt lịch lấy đồ
+          </a>
+        )}
 
         <button
           className="mobile-toggle"
@@ -328,7 +351,7 @@ export function SiteHeader({ active }: { active?: string }) {
             </div>
           )}
 
-          {nav.map(([label, href]) => {
+          {visibleNav.map(([label, href]) => {
             const isActive = isNavActive(href, label);
             return (
               <Link

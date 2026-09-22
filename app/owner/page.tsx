@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Area, AreaChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { AlertTriangle, ArrowUpRight, Clock3, Coffee, Download, PackageCheck, Repeat2, Shirt, Sparkles, TrendingUp, Users, WashingMachine } from "lucide-react";
+import { Download, PackageCheck, Shirt, TrendingUp, WashingMachine } from "lucide-react";
 import { toast } from "sonner";
 import { OpsShell } from "@/components/sachplus/ops-shell";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";

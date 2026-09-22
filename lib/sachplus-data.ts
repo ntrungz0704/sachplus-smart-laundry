@@ -7,6 +7,7 @@ export type LaundryStatus =
   | "Đang giặt"
   | "Đang sấy"
   | "QC & đóng gói"
+  | "Sẵn sàng lấy tại quầy"
   | "Đang giao"
   | "Hoàn tất"
   | "Hủy đơn";
@@ -19,9 +20,28 @@ export const ORDER_FLOW_STEPS: LaundryStatus[] = [
   "Đang giặt",
   "Đang sấy",
   "QC & đóng gói",
+  "Sẵn sàng lấy tại quầy",
   "Đang giao",
   "Hoàn tất",
 ];
+
+export function normalizeDate(dateStr?: string): string {
+  if (!dateStr) return "";
+  const clean = dateStr.trim();
+  if (clean.includes("-")) {
+    const parts = clean.split("-");
+    if (parts[0].length === 4) {
+      return `${parts[0]}-${parts[1].padStart(2, "0")}-${parts[2].padStart(2, "0")}`;
+    }
+  }
+  if (clean.includes("/")) {
+    const parts = clean.split("/");
+    if (parts.length === 3) {
+      return `${parts[2]}-${parts[1].padStart(2, "0")}-${parts[0].padStart(2, "0")}`;
+    }
+  }
+  return clean;
+}
 
 export function getNextStatus(currentStatus: LaundryStatus): LaundryStatus | null {
   const index = ORDER_FLOW_STEPS.indexOf(currentStatus);
@@ -39,6 +59,23 @@ export function canCustomerCancel(status: LaundryStatus): boolean {
   return status === "Đã đặt";
 }
 
+export const SYSTEM_CONFIG = {
+  brandName: "Sạch+ Smart Laundry & Café",
+  hotline: "1900 6868",
+  hotlineDisplay: "1900 6868 (hoặc 0908.889.999)",
+  supportPhone: "0908.889.999",
+  email: "support@sachplus.vn",
+  address: "Shophouse SH-08, Tòa Landmark 81, Vinhomes Sài Gòn Park, Xuân Thới Sơn, TP.HCM",
+  workingHours: "07:00 – 22:00 (Cả ngày lễ)",
+  vietqr: {
+    bankBin: "970415",
+    bankCode: "ICB",
+    bankName: "VietinBank (CTG)",
+    accountNumber: "108875292318",
+    accountName: "NGUYEN TRUNG",
+  },
+};
+
 export type OrderComplaint = {
   id: string;
   orderId: string;
@@ -50,12 +87,15 @@ export type OrderComplaint = {
 
 export type LaundryOrder = {
   id: string;
+  userId?: string;
   service: LaundryService;
   pickupDate: string;
   pickupTime: string;
   journey: string;
   status: LaundryStatus;
   total: number;
+  paymentMethod?: "Ví Sạch+" | "COD" | "VietQR" | "Tại quầy";
+  paymentStatus?: "Đã thanh toán" | "Chờ thanh toán" | "Đã hoàn tiền";
   weight?: string;
   machineId?: string;
   machineTimer?: string;
@@ -382,10 +422,12 @@ if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("sachplus:menu-updated"));
     } else if (e.key === KEYS.machines) {
       window.dispatchEvent(new CustomEvent("sachplus:machines-updated"));
-    } else if (e.key === KEYS.wallet) {
+    } else if (e.key === KEYS.wallet || e.key.startsWith(KEYS.wallet) || e.key.startsWith(KEYS.transactions)) {
       window.dispatchEvent(new CustomEvent("sachplus:wallet-updated"));
     } else if (e.key === KEYS.cafeOrders) {
       window.dispatchEvent(new CustomEvent("sachplus:cafe-order-created"));
+    } else if (e.key === KEYS.complaints) {
+      window.dispatchEvent(new CustomEvent("sachplus:complaint-submitted"));
     }
   });
 }
@@ -472,7 +514,7 @@ export function deleteCafeMenuItem(id: string): CafeMenuItem[] {
   return updated;
 }
 
-export function adjustCafeStock(id: string, delta: number, _reason?: string): { success: boolean; item?: CafeMenuItem; message: string } {
+export function adjustCafeStock(id: string, delta: number, reason?: string): { success: boolean; item?: CafeMenuItem; message: string } {
   const current = getCafeMenu();
   const found = current.find((c) => c.id === id);
   if (!found) {
@@ -482,10 +524,11 @@ export function adjustCafeStock(id: string, delta: number, _reason?: string): { 
   const updated = current.map((c) => (c.id === id ? { ...c, stock: newStock } : c));
   saveCafeMenu(updated);
   const actionText = delta >= 0 ? `Nhập thêm ${delta}` : `Xuất bớt ${Math.abs(delta)}`;
+  const reasonText = reason ? ` (${reason})` : "";
   return {
     success: true,
     item: { ...found, stock: newStock },
-    message: `Đã ${actionText} ${found.unit || "ly"} cho món "${found.name}". Tồn kho hiện tại: ${newStock} ${found.unit || "ly"}.`,
+    message: `Đã ${actionText} ${found.unit || "ly"} cho món "${found.name}"${reasonText}. Tồn kho hiện tại: ${newStock} ${found.unit || "ly"}.`,
   };
 }
 
@@ -630,10 +673,13 @@ export function getLaundryOrders(): LaundryOrder[] {
 
 export function createLaundryOrder(input: {
   service: LaundryService;
+  userId?: string;
   pickupDate?: string;
   pickupTime?: string;
   journey?: string;
   total?: number;
+  paymentMethod?: "Ví Sạch+" | "COD" | "VietQR" | "Tại quầy";
+  paymentStatus?: "Đã thanh toán" | "Chờ thanh toán" | "Đã hoàn tiền";
   express?: boolean;
   cafeTotal?: number;
   cafeItems?: string[];
@@ -661,12 +707,15 @@ export function createLaundryOrder(input: {
 
   const order: LaundryOrder = {
     id,
+    userId: input.userId,
     service: input.service,
     pickupDate,
     pickupTime: input.pickupTime || "Tại quầy Shophouse SH-08",
     journey: input.journey ?? "Lấy tại nhà → giao tận nhà",
     status: input.status ?? "Đã đặt",
     total: calculatedTotal,
+    paymentMethod: input.paymentMethod || "COD",
+    paymentStatus: input.paymentStatus || (input.paymentMethod === "Ví Sạch+" ? "Đã thanh toán" : "Chờ thanh toán"),
     weight: input.weight,
     express: input.express,
     machineId: input.machineId,
@@ -675,8 +724,8 @@ export function createLaundryOrder(input: {
     voucherCode: input.voucherCode,
     discountAmount: input.discountAmount,
     customerName: input.customerName || "Cư dân",
-    customerPhone: input.customerPhone || "0901234567",
-    customerAddress: input.customerAddress || "Shophouse SH-08",
+    customerPhone: input.customerPhone ? input.customerPhone.trim() : "",
+    customerAddress: input.customerAddress ? input.customerAddress.trim() : SYSTEM_CONFIG.address,
     createdAt: new Date().toISOString(),
   };
 
@@ -684,10 +733,11 @@ export function createLaundryOrder(input: {
     incrementVoucherUsage(input.voucherCode);
   }
 
-  // Khấu trừ tồn kho cho các món Café gọi kèm dịch vụ giặt
+  // Khấu trừ tồn kho và tự động chuyển phiếu pha chế sang quầy Barista
   if (input.cafeItems && input.cafeItems.length > 0) {
     const menu = getCafeMenu();
     let menuChanged = false;
+    const cafeItemsList: { id: string; name: string; quantity: number; price: number }[] = [];
     const updatedMenu = menu.map((menuItem) => {
       const match = input.cafeItems?.some(
         (ci) =>
@@ -696,6 +746,12 @@ export function createLaundryOrder(input: {
       );
       if (match) {
         menuChanged = true;
+        cafeItemsList.push({
+          id: menuItem.id,
+          name: menuItem.name,
+          quantity: 1,
+          price: menuItem.price,
+        });
         return {
           ...menuItem,
           stock: Math.max(0, menuItem.stock - 1),
@@ -706,6 +762,20 @@ export function createLaundryOrder(input: {
     if (menuChanged) {
       saveCafeMenu(updatedMenu);
     }
+
+    // Tự động tạo đơn phiếu pha chế sang Sạch+ Café Lầu 1
+    try {
+      createCafeOrder({
+        id: `CF-LINK-${id.replace("SP-", "")}`,
+        items: cafeItemsList.length > 0 ? cafeItemsList : input.cafeItems.map(name => ({ id: "addon", name, quantity: 1, price: 35000 })),
+        subtotal: input.cafeTotal || 0,
+        discount: 0,
+        total: input.cafeTotal || 0,
+        mode: `Kèm đơn giặt #${id}`,
+        customerName: input.customerName || "Cư dân",
+        note: `Phục vụ kèm đơn giặt #${id} (Giao: ${input.customerAddress || "Nội khu"})`,
+      });
+    } catch {}
   }
 
   const existing = getLaundryOrders();
@@ -786,18 +856,63 @@ export function cancelOrder(
   if (cancelledByRole === "customer" && order.status !== "Đã đặt") {
     return {
       success: false,
-      message: "Đơn hàng đã được tiệm tiếp nhận và đưa vào chu trình giặt tiệt trùng. Không thể tự hủy đơn. Quý khách vui lòng liên hệ Hotline 0901.234.567 để được hỗ trợ khẩn cấp.",
+      message: `Đơn hàng đã được tiệm tiếp nhận và đưa vào chu trình giặt tiệt trùng. Không thể tự hủy đơn. Quý khách vui lòng liên hệ Hotline ${SYSTEM_CONFIG.hotlineDisplay} để được hỗ trợ khẩn cấp.`,
     };
   }
 
+  let refundMsg = "";
+  let nextPaymentStatus = order.paymentStatus;
+  // Tự động hoàn tiền 100% nếu đơn đã thanh toán bằng Ví Sạch+
+  if (order.paymentMethod === "Ví Sạch+" && order.paymentStatus === "Đã thanh toán" && order.total > 0) {
+    addWalletBalance(order.total, order.userId);
+    addTransaction(
+      {
+        type: "Hoàn tiền",
+        amount: order.total,
+        note: `Hoàn tiền 100% đơn hủy #${order.id}`,
+      },
+      order.userId
+    );
+    nextPaymentStatus = "Đã hoàn tiền";
+    refundMsg = ` Đã tự động hoàn trả ${formatVnd(order.total)} vào Ví Sạch+.`;
+  }
+
+  // Tự động giải phóng máy giặt/sấy nếu có máy đang được gán
+  const machines = getMachines();
+  let machineChanged = false;
+  const updatedMachines = machines.map((m) => {
+    if (m.assignedOrder === orderId || (order.machineId && m.id === order.machineId)) {
+      machineChanged = true;
+      return {
+        ...m,
+        status: "Trống",
+        note: "Sẵn sàng nhận đơn mới",
+        state: "idle" as const,
+        assignedOrder: undefined,
+      };
+    }
+    return m;
+  });
+  if (machineChanged) {
+    saveMachines(updatedMachines);
+  }
+
   const updated = orders.map((o) =>
-    o.id === orderId ? { ...o, status: "Hủy đơn" as LaundryStatus } : o
+    o.id === orderId
+      ? {
+          ...o,
+          status: "Hủy đơn" as LaundryStatus,
+          paymentStatus: nextPaymentStatus,
+          machineId: undefined,
+          machineTimer: undefined,
+        }
+      : o
   );
   safeSet(KEYS.orders, updated);
   emit("sachplus:order-updated", { orderId, status: "Hủy đơn", reason, cancelledByRole });
   return {
     success: true,
-    message: `Đã hủy đơn #${orderId} thành công (Lưu vết sổ cái).`,
+    message: `Đã hủy đơn #${orderId} thành công.${refundMsg}`,
     orders: updated,
   };
 }
@@ -854,6 +969,38 @@ export function addWalletBalance(amount: number, userId?: string) {
   addTransaction({ type: "Nạp tiền", amount, note: `Nạp ${formatVnd(amount)} qua VietQR` }, userId);
   emit("sachplus:wallet-updated", next);
   return next;
+}
+
+export function deductWalletBalance(
+  amount: number,
+  userId?: string,
+  orderId?: string,
+  note?: string
+): { success: boolean; newBalance: number; message: string } {
+  const current = getWalletBalance(userId);
+  if (current < amount) {
+    return {
+      success: false,
+      newBalance: current,
+      message: `Số dư Ví Sạch+ không đủ (${formatVnd(current)} < ${formatVnd(amount)}). Vui lòng nạp thêm tiền.`,
+    };
+  }
+  const next = current - amount;
+  safeSet(walletKey(userId), next);
+  addTransaction(
+    {
+      type: "Thanh toán",
+      amount: -amount,
+      note: note || (orderId ? `Thanh toán đơn hàng #${orderId}` : `Thanh toán dịch vụ Sạch+`),
+    },
+    userId
+  );
+  emit("sachplus:wallet-updated", next);
+  return {
+    success: true,
+    newBalance: next,
+    message: `Đã thanh toán thành công ${formatVnd(amount)} từ Ví Sạch+. Số dư còn lại: ${formatVnd(next)}.`,
+  };
 }
 
 export type Transaction = {
@@ -943,15 +1090,46 @@ export function deleteVoucher(id: string): VoucherItem[] {
   return updated;
 }
 
-export function incrementVoucherUsage(_code: string) {
+export function incrementVoucherUsage(code?: string) {
   // getVouchers() tự động tính toán trực tiếp từ orders theo thời gian thực
-  emit("sachplus:vouchers-updated");
+  emit("sachplus:vouchers-updated", code);
+}
+
+export function registerDynamicVoucher(
+  voucher: Partial<VoucherItem> & { code: string; discountValue: number }
+) {
+  const vouchers = getVouchers();
+  const cleanCode = voucher.code.toUpperCase();
+  if (!vouchers.some((v) => v.code.toUpperCase() === cleanCode)) {
+    const newVoucher: VoucherItem = {
+      id: `vch-dyn-${Date.now().toString().slice(-6)}`,
+      code: cleanCode,
+      title: voucher.title || `ƯU ĐÃI ${cleanCode}`,
+      description: voucher.description || `Giảm ${voucher.discountValue}% hóa đơn`,
+      discountType: voucher.discountType || "percent",
+      discountValue: voucher.discountValue,
+      maxDiscount: voucher.maxDiscount || 30000,
+      minOrderValue: voucher.minOrderValue || 50000,
+      startDate: voucher.startDate || "2026-01-01",
+      endDate: voucher.endDate || "2026-12-31",
+      activeDays: voucher.activeDays || "all",
+      timeSlot: voucher.timeSlot || "all_day",
+      usageLimit: voucher.usageLimit || 1000,
+      usedCount: 0,
+      isActive: true,
+    };
+    saveVouchers([newVoucher, ...vouchers]);
+    return newVoucher;
+  }
+  return vouchers.find((v) => v.code.toUpperCase() === cleanCode);
 }
 
 export function validateVoucher(
   code: string,
   orderValue: number,
-  refDate: Date = new Date()
+  refDate: Date = new Date(),
+  targetTimeSlot?: string,
+  targetDateStr?: string
 ): { valid: boolean; message: string; discountAmount: number; voucher?: VoucherItem } {
   const cleanCode = code.trim().toUpperCase();
   if (!cleanCode) {
@@ -969,11 +1147,22 @@ export function validateVoucher(
     return { valid: false, message: `Mã ưu đãi "${found.code}" hiện đang tạm dừng áp dụng.`, discountAmount: 0, voucher: found };
   }
 
-  // Check date range (local time)
-  const y = refDate.getFullYear();
-  const m = String(refDate.getMonth() + 1).padStart(2, "0");
-  const d = String(refDate.getDate()).padStart(2, "0");
-  const todayStr = `${y}-${m}-${d}`;
+  // Check date range (local time or target date)
+  let todayStr: string;
+  let dayOfWeek: number;
+
+  if (targetDateStr) {
+    todayStr = normalizeDate(targetDateStr);
+    const parsedTarget = new Date(targetDateStr);
+    dayOfWeek = isNaN(parsedTarget.getDay()) ? refDate.getDay() : parsedTarget.getDay();
+  } else {
+    const y = refDate.getFullYear();
+    const m = String(refDate.getMonth() + 1).padStart(2, "0");
+    const d = String(refDate.getDate()).padStart(2, "0");
+    todayStr = `${y}-${m}-${d}`;
+    dayOfWeek = refDate.getDay();
+  }
+
   if (found.startDate && todayStr < found.startDate) {
     return {
       valid: false,
@@ -991,8 +1180,7 @@ export function validateVoucher(
     };
   }
 
-  // Check day of week
-  const dayOfWeek = refDate.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+  // Check day of week (0 = Sunday, 1 = Monday, ..., 6 = Saturday)
   const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
   if (found.activeDays === "weekdays" && isWeekend) {
     return { valid: false, message: `Mã ưu đãi "${found.code}" chỉ áp dụng từ Thứ 2 đến Thứ 6.`, discountAmount: 0, voucher: found };
@@ -1003,9 +1191,14 @@ export function validateVoucher(
 
   // Check time slot / golden hour
   if (found.timeSlot === "custom" && found.timeStart && found.timeEnd) {
-    const currentHours = String(refDate.getHours()).padStart(2, "0");
-    const currentMins = String(refDate.getMinutes()).padStart(2, "0");
-    const currentTime = `${currentHours}:${currentMins}`;
+    let currentTime: string;
+    if (targetTimeSlot) {
+      currentTime = targetTimeSlot.split(/[–-]/)[0].trim();
+    } else {
+      const currentHours = String(refDate.getHours()).padStart(2, "0");
+      const currentMins = String(refDate.getMinutes()).padStart(2, "0");
+      currentTime = `${currentHours}:${currentMins}`;
+    }
     if (currentTime < found.timeStart || currentTime > found.timeEnd) {
       return {
         valid: false,

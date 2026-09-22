@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Clock3, Coffee, MapPin, Phone, ShieldCheck, UserCheck, WashingMachine, Wrench } from "lucide-react";
 
 import { Logo } from "@/components/sachplus/logo";
+import { SYSTEM_CONFIG } from "@/lib/sachplus-data";
 
 export function SiteFooter() {
   return (
@@ -45,9 +46,9 @@ export function SiteFooter() {
 
       <div>
         <h3>Shophouse Sạch+ SG Park</h3>
-        <p><MapPin size={16} className="text-[#0284C7] shrink-0" /> Shophouse SH-08, Vinhomes Sài Gòn Park, Xuân Thới Sơn, TP.HCM</p>
-        <p><Clock3 size={16} className="text-[#0284C7] shrink-0" /> Mở cửa: 07:00 – 22:00 (Cả ngày lễ)</p>
-        <p><Phone size={16} className="text-[#0284C7] shrink-0" /> Hotline giao nhận: 1900 6868</p>
+        <p><MapPin size={16} className="text-[#0284C7] shrink-0" /> {SYSTEM_CONFIG.address}</p>
+        <p><Clock3 size={16} className="text-[#0284C7] shrink-0" /> Mở cửa: {SYSTEM_CONFIG.workingHours}</p>
+        <p><Phone size={16} className="text-[#0284C7] shrink-0" /> Hotline giao nhận: {SYSTEM_CONFIG.hotlineDisplay}</p>
       </div>
 
       <small className="pt-4">

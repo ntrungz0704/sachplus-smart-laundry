@@ -1,7 +1,13 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { createLaundryOrder, getServiceCatalog, formatVnd, type ServiceItem } from '@/lib/sachplus-data';
+import {
+  createLaundryOrder,
+  getServiceCatalog,
+  formatVnd,
+  registerDynamicVoucher,
+  type ServiceItem,
+} from '@/lib/sachplus-data';
 import { toast } from 'sonner';
 import { QrCode, Printer, RotateCcw, CheckCircle, Ticket, Store, Shirt, Zap, Bed, Briefcase } from 'lucide-react';
 
@@ -59,19 +65,30 @@ export default function WalkInPosPage() {
     
     const newOrder = createLaundryOrder({
       service: selectedService.name,
-      customerName: isWalkIn ? 'Khách vãng lai' : (phone ? `Khách ${phone.slice(-4)}` : 'Khách tại quầy'),
-      customerPhone: phone || '0901234567',
+      customerName: isWalkIn ? `Khách vãng lai #${orderCode.slice(-4)}` : (phone ? `Khách ${phone.slice(-4)}` : 'Khách tại quầy'),
+      customerPhone: phone.trim() || (isWalkIn ? `VANG-LAI-${orderCode.slice(-4)}` : 'Tại quầy'),
+      paymentMethod: 'Tại quầy',
+      paymentStatus: 'Đã thanh toán',
       total: estimatedPrice,
       weight: `${weight} ${selectedService.unit}`,
       journey: 'Gửi tại quầy → Nhận tại quầy',
       status: 'Đã nhận tại tiệm',
     });
 
+    const voucherCode = `CAFE10-${orderCode}`;
+    registerDynamicVoucher({
+      code: voucherCode,
+      title: "ƯU ĐÃI 10% SẠCH+ CAFÉ",
+      description: `Voucher giảm 10% Sạch+ Café dành riêng cho đơn giặt tại quầy #${newOrder.id}`,
+      discountValue: 10,
+      minOrderValue: 50000,
+    });
+
     setSuccessData({
       orderId: newOrder.id,
       orderCode,
       totalPrice: estimatedPrice,
-      voucherCode: `CAFE10-${orderCode}`,
+      voucherCode,
     });
 
     toast.success('Đã tạo đơn hàng thành công tại quầy!');

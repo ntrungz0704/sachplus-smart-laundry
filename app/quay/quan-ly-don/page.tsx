@@ -39,7 +39,14 @@ import {
   type LaundryService,
 } from "@/lib/sachplus-data";
 
-const columns = ["Đơn mới", "Phân loại", "Đang giặt", "Đang sấy", "QC & đóng gói"] as const;
+const columns = [
+  "Đơn mới",
+  "Phân loại",
+  "Đang giặt",
+  "Đang sấy",
+  "QC & đóng gói",
+  "Giao nhận & Chờ lấy",
+] as const;
 type KanbanColumn = (typeof columns)[number];
 
 function getKanbanColumn(status: LaundryStatus): KanbanColumn | null {
@@ -56,7 +63,9 @@ function getKanbanColumn(status: LaundryStatus): KanbanColumn | null {
       return "Đang sấy";
     case "QC & đóng gói":
       return "QC & đóng gói";
+    case "Sẵn sàng lấy tại quầy":
     case "Đang giao":
+      return "Giao nhận & Chờ lấy";
     case "Hoàn tất":
     default:
       return null;
@@ -164,9 +173,16 @@ export default function StaffPage() {
     const currentColumn = getKanbanColumn(order.status);
     if (!currentColumn) return;
 
-    const index = columns.indexOf(currentColumn);
-    if (index === columns.length - 1) {
-      // Step: "QC & đóng gói" -> next is "Đang giao" (leaves kanban)
+    // Nếu đơn đang ở cột cuối "Giao nhận & Chờ lấy" -> Bàn giao thành công sang Hoàn tất
+    if (currentColumn === "Giao nhận & Chờ lấy") {
+      updateOrderStatus(order.id, "Hoàn tất");
+      setOrders(getLaundryOrders());
+      toast.success(`Đã xác nhận bàn giao thành công đơn hàng #${order.id}!`);
+      return;
+    }
+
+    // Nếu đơn ở bước "QC & đóng gói" -> chuyển sang "Sẵn sàng lấy tại quầy" hoặc "Đang giao hàng"
+    if (currentColumn === "QC & đóng gói") {
       const currentMachines = getMachines();
       const updatedMachines = currentMachines.map((m) =>
         m.assignedOrder === order.id || m.id === order.machineId
@@ -176,12 +192,23 @@ export default function StaffPage() {
       saveMachines(updatedMachines);
       setMachines(updatedMachines);
 
-      updateOrderStatus(order.id, "Đang giao", { machineId: undefined, machineTimer: undefined });
+      const isPickupAtStore =
+        order.journey?.includes("Tự lấy") ||
+        order.journey?.includes("Nhận tại quầy") ||
+        order.journey?.includes("tại quầy");
+
+      const nextStatus: LaundryStatus = isPickupAtStore ? "Sẵn sàng lấy tại quầy" : "Đang giao";
+      updateOrderStatus(order.id, nextStatus, { machineId: undefined, machineTimer: undefined });
       setOrders(getLaundryOrders());
-      toast.success(`${order.id} đã hoàn tất QC và chuyển sang danh sách Đang giao!`);
+      toast.success(
+        isPickupAtStore
+          ? `${order.id} đã hoàn tất đóng gói, sẵn sàng chờ khách ghé nhận tại quầy!`
+          : `${order.id} đã hoàn tất QC và chuyển sang danh sách Shipper giao tận cửa!`
+      );
       return;
     }
 
+    const index = columns.indexOf(currentColumn);
     const nextColumn = columns[index + 1];
 
     if (nextColumn === "Phân loại") {
@@ -315,13 +342,27 @@ export default function StaffPage() {
     });
   }, [orders, selectedMachine]);
 
+  const now = new Date();
+  const dateFormatted = now.toLocaleDateString("vi-VN", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  });
+  const currentHour = now.getHours();
+  const shiftText =
+    currentHour >= 7 && currentHour < 15
+      ? "Vận hành ca sáng (07:00 – 15:00)"
+      : currentHour >= 15 && currentHour < 22
+      ? "Vận hành ca chiều (15:00 – 22:00)"
+      : "Vận hành ca tối/đêm (22:00 – 07:00)";
+
   return (
     <div className="w-full min-w-0">
       {/* Topbar ca làm việc */}
       <header className="ops-topbar flex flex-wrap items-center justify-between gap-4">
         <div>
-          <p>Thứ Năm, 17 tháng 9 · Shophouse Sài Gòn Park</p>
-          <h1>Vận hành ca sáng (07:00 – 15:00)</h1>
+          <p>{dateFormatted.charAt(0).toUpperCase() + dateFormatted.slice(1)} · Shophouse Sài Gòn Park</p>
+          <h1>{shiftText}</h1>
         </div>
         <div className="flex items-center gap-3">
           <button
@@ -408,7 +449,7 @@ export default function StaffPage() {
               <div className={`kanban-board ${mobileKanbanCol !== "all" ? "!grid-cols-1" : ""}`}>
                 {columns
                   .filter((col) => mobileKanbanCol === "all" || mobileKanbanCol === col)
-                  .map((column, index) => {
+                  .map((column) => {
                     const columnOrders = orders.filter((o) => getKanbanColumn(o.status) === column);
                     return (
                       <section key={column} className="kanban-column">
@@ -432,13 +473,42 @@ export default function StaffPage() {
                             <Scale size={13} /> {order.weight || "Tiêu chuẩn"} <span>•</span>
                             <Clock3 size={13} /> Hạn: {order.pickupTime || "Trong ngày"}
                           </p>
+                          {order.customerName && (
+                            <p className="text-[11px] text-stone-600 font-medium truncate">
+                              Khách: <b>{order.customerName}</b> {order.customerPhone ? `(${order.customerPhone})` : ""}
+                            </p>
+                          )}
                           {order.machineId && (
                             <div className="machine-tag">
                               <WashingMachine size={13} /> {order.machineId} {order.machineTimer ? `· ${order.machineTimer}` : ""}
                             </div>
                           )}
-                          <button type="button" onClick={() => advance(order)}>
-                            {index === columns.length - 1 ? "Hoàn tất QC & Giao" : "Chuyển bước"}
+                          {order.status === "Sẵn sàng lấy tại quầy" && (
+                            <div className="text-[11px] font-bold text-amber-800 bg-amber-100/80 px-2 py-0.5 rounded border border-amber-300 mt-1 inline-block">
+                              📦 Chờ khách lấy tại quầy SH-08
+                            </div>
+                          )}
+                          {order.status === "Đang giao" && (
+                            <div className="text-[11px] font-bold text-sky-800 bg-sky-100/80 px-2 py-0.5 rounded border border-sky-300 mt-1 inline-block">
+                              🚚 Shipper đang giao tận cửa
+                            </div>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => advance(order)}
+                            className={
+                              column === "Giao nhận & Chờ lấy"
+                                ? "!bg-emerald-600 hover:!bg-emerald-700 !text-white !font-bold cursor-pointer"
+                                : "cursor-pointer"
+                            }
+                          >
+                            {column === "Giao nhận & Chờ lấy"
+                              ? "Bàn giao thành công ✓"
+                              : column === "QC & đóng gói"
+                              ? order.journey?.includes("quầy") || order.journey?.includes("Tự lấy")
+                                ? "Sẵn sàng nhận tại quầy"
+                                : "Chuyển giao tận nơi"
+                              : "Chuyển bước"}
                             <ChevronRight size={14} />
                           </button>
                         </article>

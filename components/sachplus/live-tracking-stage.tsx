@@ -13,15 +13,10 @@ import {
   Layers,
   MapPin,
   PackageCheck,
-  Pause,
-  Play,
   QrCode,
-  RotateCw,
-  ShieldCheck,
   Shirt,
   Sparkles,
   Truck,
-  WashingMachine,
 } from "lucide-react";
 
 export interface TrackingStageInfo {
@@ -41,8 +36,8 @@ const STAGES: TrackingStageInfo[] = [
     id: "da-dat",
     name: "Đã đặt",
     badge: "BƯỚC 1/7 · TIẾP NHẬN ĐƠN",
-    title: "Đơn #SP-240916 đã ghi nhận trên hệ thống",
-    desc: "Tổng đài viên đã gán đơn cho Shipper nội khu tòa Landmark 81. Lịch hẹn lấy đồ đã được xác nhận vào lúc 08:30 sáng.",
+    title: "Đơn hàng đã ghi nhận trên hệ thống",
+    desc: "Tổng đài viên đã gán đơn cho Shipper nội khu. Lịch hẹn lấy đồ đã được xác nhận vào lúc 08:30 sáng.",
     metricLabel: "Thời gian tiếp nhận",
     metricVal: "08:15 Sáng nay",
     operator: "Hệ thống tự động & Điều phối viên",
@@ -460,7 +455,7 @@ export function LiveTrackingStage() {
                 </div>
 
                 <strong className="text-sm font-extrabold text-stone-800">
-                  Bàn giao tận cửa căn hộ Landmark 81
+                  Bàn giao tận cửa căn hộ cư dân
                 </strong>
                 <p className="text-[11px] text-[#0284C7] font-bold mt-0.5">
                   Đồ sạch thơm phẳng phiu · Đánh giá 5.0 ★★★★★

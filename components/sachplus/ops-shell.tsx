@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import {
-  ChevronLeft,
   Coffee,
   LayoutDashboard,
   Lock,
@@ -11,8 +10,6 @@ import {
   Package,
   QrCode,
   Settings,
-  Shield,
-  ShieldAlert,
   Shirt,
   Users,
   WashingMachine,
@@ -21,8 +18,6 @@ import {
   Clock,
   ExternalLink,
   ChevronRight,
-  Radio,
-  UserCheck,
   Menu,
   X,
 } from "lucide-react";
@@ -96,12 +91,6 @@ const ROLE_LABELS = {
   staff: "NHÂN VIÊN VẬN HÀNH",
   owner: "CHỦ CỬA HÀNG",
   admin: "QUẢN TRỊ VIÊN",
-} as const;
-
-const ROLE_SUBTITLES = {
-  staff: "Shophouse Sài Gòn Park",
-  owner: "Shophouse Sài Gòn Park",
-  admin: "Toàn quyền hệ thống",
 } as const;
 
 export function OpsShell({ role, children }: { role: "staff" | "owner" | "admin"; children: React.ReactNode }) {
@@ -197,7 +186,7 @@ export function OpsShell({ role, children }: { role: "staff" | "owner" | "admin"
     : false;
 
   return (
-    <div className="ops-shell flex flex-col lg:grid lg:grid-cols-[260px_minmax(0,1fr)] w-full min-w-0 bg-slate-900 lg:bg-[#1E293B]">
+    <div className="ops-shell flex flex-col lg:flex-row w-full h-screen overflow-hidden bg-slate-900 lg:bg-[#1E293B]">
       {/* 1. MOBILE TOPBAR (Visible only on < 1024px) */}
       <div className="lg:hidden sticky top-0 z-40 bg-[#0F172A] border-b border-slate-800 px-4 py-2.5 flex items-center justify-between shadow-md">
         <div className="flex items-center gap-2.5">
@@ -435,7 +424,7 @@ export function OpsShell({ role, children }: { role: "staff" | "owner" | "admin"
       )}
 
       {/* 4. DESKTOP SIDEBAR (Visible only on >= 1024px) */}
-      <aside className="ops-sidebar ops-sidebar-desktop hidden lg:flex flex-col sticky top-0 h-screen p-4 bg-[#1E293B] text-white border-r border-slate-800 shadow-xl overflow-y-auto w-[260px] shrink-0">
+      <aside className="ops-sidebar ops-sidebar-desktop hidden lg:flex flex-col h-screen p-4 bg-[#1E293B] text-white border-r border-slate-800 shadow-xl overflow-y-auto w-[260px] shrink-0 z-20">
         {/* Brand Header */}
         <div className="px-2 py-3 border-b border-slate-700/80 mb-4 flex items-center justify-between">
           <Logo size="md" inverted={true} href="/" />
@@ -571,9 +560,9 @@ export function OpsShell({ role, children }: { role: "staff" | "owner" | "admin"
       </aside>
 
       {/* 5. MAIN CONTAINER */}
-      <main className="ops-main flex-1 w-full min-w-0 bg-[#F8FAFC] overflow-x-hidden">
+      <div className="ops-main-wrapper flex-1 flex flex-col min-w-0 bg-[#F8FAFC] lg:h-screen lg:overflow-hidden">
         {/* Enterprise Topbar */}
-        <header className="sticky top-0 z-20 bg-white border-b border-stone-200 px-4 sm:px-6 py-2.5 sm:py-3 flex items-center justify-between shadow-xs">
+        <header className="shrink-0 z-20 bg-white border-b border-stone-200 px-4 sm:px-6 py-2.5 sm:py-3 flex items-center justify-between shadow-xs">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <div className="text-xs font-semibold text-stone-500 flex items-center gap-1.5 sm:gap-2 truncate">
               <span className="font-bold text-[#0284C7] shrink-0">Sạch+</span>
@@ -630,7 +619,7 @@ export function OpsShell({ role, children }: { role: "staff" | "owner" | "admin"
         </header>
 
         {/* Content Area with Strict Permission Guard */}
-        <div className="p-3 sm:p-6 lg:p-8 w-full min-w-0 max-w-full overflow-x-hidden">
+        <main className="ops-main-scroll flex-1 lg:overflow-y-auto overflow-x-hidden p-3 sm:p-6 lg:p-8 w-full min-w-0 max-w-full">
         {/* Strict Permission Guard */}
         {checked && !isAuthorized ? (
           <div className="min-h-[80vh] flex items-center justify-center p-6">
@@ -690,8 +679,8 @@ export function OpsShell({ role, children }: { role: "staff" | "owner" | "admin"
         ) : (
           children
         )}
-        </div>
-      </main>
+        </main>
+      </div>
     </div>
   );
 }

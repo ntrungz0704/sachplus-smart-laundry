@@ -3065,16 +3065,12 @@ button:active:not(:disabled), [role="button"]:active {
    ========================================================================== */
 .ops-shell {
   min-height: 100vh;
-  display: grid;
-  grid-template-columns: 260px minmax(0, 1fr);
+  display: flex;
   background: #1E293B;
-  overflow-x: hidden;
   width: 100%;
 }
 
 .ops-sidebar {
-  position: sticky;
-  top: 0;
   height: 100vh;
   display: flex;
   flex-direction: column;
@@ -3084,7 +3080,6 @@ button:active:not(:disabled), [role="button"]:active {
   border-right: 1px solid #334155;
   box-shadow: 2px 0 10px rgba(0, 0, 0, 0.12);
   overflow-y: auto;
-  overflow-x: hidden;
 }
 
 .ops-brand {
@@ -3163,7 +3158,6 @@ button:active:not(:disabled), [role="button"]:active {
   width: 100%;
   min-height: 100vh;
   background: #F8FAFC;
-  overflow-x: hidden;
   padding: 0 0 40px;
 }
 

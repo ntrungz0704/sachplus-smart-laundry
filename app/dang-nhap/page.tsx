@@ -9,6 +9,7 @@ import {
   getCurrentUser,
   loginUser,
 } from "@/lib/sachplus-auth";
+import { SYSTEM_CONFIG } from "@/lib/sachplus-data";
 import { toast } from "sonner";
 import {
   Eye,
@@ -128,7 +129,7 @@ function LoginForm() {
               </label>
               <button
                 type="button"
-                onClick={() => toast.info("Vui lòng liên hệ ban quản lý Shophouse SH-08 hoặc hotline 0908.889.999 để cấp lại mật khẩu.")}
+                onClick={() => toast.info(`Vui lòng liên hệ ban quản lý ${SYSTEM_CONFIG.brandName} hoặc hotline ${SYSTEM_CONFIG.hotlineDisplay} để cấp lại mật khẩu.`)}
                 className="text-[11px] text-stone-500 hover:text-[#0284C7] hover:underline cursor-pointer"
               >
                 Quên mật khẩu?

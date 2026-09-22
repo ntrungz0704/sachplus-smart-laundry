@@ -13,29 +13,29 @@
 # testing
 /coverage
 
-# next.js
+# next.js & vite
 /.next/
 /.vinext/
+/.vite/
+/.turbo/
 /out/
 
 # misc
 .DS_Store
 *.pem
 
-# debug
+# debug & logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+*.log
 
 # env files (can opt-in for committing if needed)
 .env*
 
-# vercel
+# vercel & workers
 .vercel
-
-# typescript
-next-env.d.ts
 /dist/
 /.wrangler/
 /.sites-runtime/
@@ -43,3 +43,12 @@ next-env.d.ts
 /.codex/
 /outputs/
 /work/
+
+# typescript & build artifacts
+next-env.d.ts
+*.tsbuildinfo
+tsconfig.tsbuildinfo
+
+# dev screenshots & reference images
+screenshot_*.png
+/design-refs/

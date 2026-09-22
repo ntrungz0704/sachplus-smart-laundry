@@ -4,44 +4,34 @@ import { useState, useEffect, useMemo } from "react";
 import {
   Plus,
   Pencil,
-  Eye,
   EyeOff,
   Archive,
   RefreshCw,
   Search,
-  Filter,
   TrendingUp,
-  TrendingDown,
   DollarSign,
   Package,
   WashingMachine,
   Coffee,
   Users,
   Gift,
-  Shirt,
   CheckCircle2,
   AlertTriangle,
-  Clock,
   Calendar,
-  Sparkles,
-  ArrowUpRight,
-  ShieldCheck,
   FileSpreadsheet,
   X,
   Save,
   Check,
   Tag,
   PackageCheck,
-  Layers,
   ChevronRight,
-  SlidersHorizontal,
   Trash2,
   Boxes,
   PackagePlus,
 } from "lucide-react";
 import { toast } from "sonner";
 import { OpsShell } from "@/components/sachplus/ops-shell";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -58,15 +48,12 @@ import {
   toggleCafeMenuStatus,
   deleteCafeMenuItem,
   adjustCafeStock,
-  setCafeStock,
   getProductMetrics,
   getLaundryOrders,
-  updateOrderStatus,
   advanceOrderStatus,
   cancelOrder,
   getNextStatus,
   getForwardStatuses,
-  ORDER_FLOW_STEPS,
   getMachines,
   saveMachines,
   getVouchers,
@@ -652,9 +639,15 @@ function OverviewTab({ onNavigateTab }: { onNavigateTab: (tab: string) => void }
             </svg>
 
             {orders.length === 0 && cafeOrders.length === 0 && (
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <span className="text-xs font-bold text-stone-500 bg-white/95 px-3.5 py-1.5 rounded-full border border-stone-200 shadow-2xs">
-                  ⚡ Hệ thống sẵn sàng tiếp nhận đơn mới
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/60 backdrop-blur-[1px] rounded-lg p-4">
+                <div className="w-9 h-9 rounded-full bg-sky-100 text-[#0284C7] flex items-center justify-center mb-1.5 shadow-2xs">
+                  <TrendingUp size={18} />
+                </div>
+                <span className="text-xs font-extrabold text-stone-800">
+                  Hệ thống sẵn sàng tiếp nhận đơn mới
+                </span>
+                <span className="text-[11px] text-stone-500 mt-0.5 text-center">
+                  Biểu đồ sẽ phân tích và cập nhật biểu diễn thời gian thực ngay khi có giao dịch phát sinh
                 </span>
               </div>
             )}
@@ -706,17 +699,20 @@ function OverviewTab({ onNavigateTab }: { onNavigateTab: (tab: string) => void }
             </div>
           </div>
 
-          <div className="pt-4 mt-6 border-t border-stone-100 bg-sky-50/60 p-3 rounded-lg flex items-center justify-between gap-2">
-            <div className="text-xs min-w-0">
+          <div className="pt-3 mt-5 border-t border-stone-100 bg-sky-50/70 p-3 rounded-lg flex items-center justify-between gap-2">
+            <div className="text-xs min-w-0 flex-1">
               <strong className="text-[#0284C7] block font-bold truncate">Món Café Được Đặt Nhiều:</strong>
-              <span className="text-stone-600 truncate block">
+              <span
+                className="text-stone-700 truncate block text-[11px] font-medium"
+                title={topCafeItem.count > 0 ? `${topCafeItem.name} (${topCafeItem.count} ly)` : "Chưa có đơn hàng phát sinh"}
+              >
                 {topCafeItem.count > 0 ? `${topCafeItem.name} · ${topCafeItem.count} ly đã bán` : "Chưa có đơn hàng phát sinh"}
               </span>
             </div>
             <button
               type="button"
               onClick={() => onNavigateTab("cafe")}
-              className="text-xs font-bold text-[#0284C7] hover:underline cursor-pointer shrink-0"
+              className="text-xs font-bold text-[#0284C7] hover:underline cursor-pointer shrink-0 pl-1"
             >
               Xem menu →
             </button>
@@ -2123,15 +2119,36 @@ function OrdersTab() {
           </p>
         </div>
 
-        <div className="relative w-full sm:w-72">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Tìm theo Mã đơn (SP-...), SĐT..."
-            className="w-full pl-9 pr-3 py-1.5 text-xs bg-stone-50 border border-stone-200 rounded-lg focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0284C7] transition"
-          />
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="px-3 py-1.5 text-xs bg-stone-50 border border-stone-200 rounded-lg focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0284C7] transition font-semibold text-stone-700 cursor-pointer"
+          >
+            <option value="all">Tất cả trạng thái</option>
+            <option value="Đã đặt">Đã đặt</option>
+            <option value="Shipper đã lấy">Shipper đã lấy</option>
+            <option value="Đã nhận tại tiệm">Đã nhận tại tiệm</option>
+            <option value="Đang phân loại">Đang phân loại</option>
+            <option value="Đang giặt">Đang giặt</option>
+            <option value="Đang sấy">Đang sấy</option>
+            <option value="QC & đóng gói">QC & đóng gói</option>
+            <option value="Sẵn sàng lấy tại quầy">Sẵn sàng lấy tại quầy</option>
+            <option value="Đang giao">Đang giao</option>
+            <option value="Hoàn tất">Hoàn tất</option>
+            <option value="Hủy đơn">Hủy đơn</option>
+          </select>
+
+          <div className="relative w-full sm:w-64">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Tìm theo Mã đơn (SP-...), SĐT..."
+              className="w-full pl-9 pr-3 py-1.5 text-xs bg-stone-50 border border-stone-200 rounded-lg focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0284C7] transition"
+            />
+          </div>
         </div>
       </div>
 

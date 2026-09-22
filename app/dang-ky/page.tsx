@@ -8,7 +8,6 @@ import { LogoMark } from "@/components/sachplus/logo";
 import { registerUser, validatePassword } from "@/lib/sachplus-auth";
 import { toast } from "sonner";
 import {
-  AlertCircle,
   Building,
   Check,
   CheckCircle2,

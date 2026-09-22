@@ -13,33 +13,31 @@ import {
   validateVoucher,
   getLaundryOrders,
   getMachines,
+  normalizeDate,
+  getWalletBalance,
+  deductWalletBalance,
   type LaundryService,
   type VoucherItem,
   type CafeMenuItem,
 } from "@/lib/sachplus-data";
-import { getCurrentUser, type UserProfile } from "@/lib/sachplus-auth";
+import { getCurrentUser, switchRole, type UserProfile } from "@/lib/sachplus-auth";
 import { toast } from "sonner";
 import {
   ArrowLeft,
   ArrowRight,
-  Building,
-  CalendarDays,
   Check,
-  CheckCircle2,
-  Clock,
   Coffee,
+  Coins,
   Gift,
-  MapPin,
   PackageCheck,
-  Phone,
   QrCode,
-  RotateCcw,
+  ShieldAlert,
   ShieldCheck,
   Shirt,
-  Sparkles,
   Tag,
   Truck,
-  User,
+  UserCheck,
+  Wallet,
   X,
   Zap,
 } from "lucide-react";
@@ -99,6 +97,11 @@ function BookingContent() {
   const [addons, setAddons] = useState<string[]>([]);
   const [confirmedId, setConfirmedId] = useState<string | null>(null);
 
+  // User & Payment state
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<"Ví Sạch+" | "COD" | "VietQR">("Ví Sạch+");
+  const [walletBalance, setWalletBalance] = useState(0);
+
   // Voucher states
   const [voucherInput, setVoucherInput] = useState("");
   const [appliedVoucher, setAppliedVoucher] = useState<VoucherItem | null>(null);
@@ -109,36 +112,60 @@ function BookingContent() {
   const [totalWashers, setTotalWashers] = useState(4);
 
   useEffect(() => {
+    const u = getCurrentUser();
+    setCurrentUser(u);
+    if (u) {
+      setWalletBalance(getWalletBalance(u.id));
+      if (!name) setName(u.name);
+      if (!phone) setPhone(u.phone);
+      if (!address) setAddress(u.apartment || "");
+    }
+
+    const handleAuth = (e: Event) => {
+      const ce = e as CustomEvent<UserProfile | null>;
+      const newUser = ce.detail !== undefined ? ce.detail : getCurrentUser();
+      setCurrentUser(newUser);
+      if (newUser) {
+        setWalletBalance(getWalletBalance(newUser.id));
+        setName(newUser.name);
+        setPhone(newUser.phone);
+        setAddress(newUser.apartment || "");
+      }
+    };
+
+    const handleWallet = () => {
+      const u = getCurrentUser();
+      if (u) setWalletBalance(getWalletBalance(u.id));
+    };
+
     const loadSlots = () => {
       const orders = getLaundryOrders();
       const machines = getMachines();
-      setSlotOrders(orders.filter(o => o.status !== 'Hoàn tất' && o.status !== 'Hủy đơn'));
-      setTotalWashers(machines.filter(m => m.type.includes('giặt')).length);
+      setSlotOrders(orders.filter((o) => o.status !== "Hoàn tất" && o.status !== "Hủy đơn"));
+      setTotalWashers(machines.filter((m) => m.type.includes("giặt")).length || 4);
     };
+
     loadSlots();
-    window.addEventListener('sachplus:order-created', loadSlots);
-    window.addEventListener('sachplus:order-updated', loadSlots);
-    window.addEventListener('sachplus:machines-updated', loadSlots);
+    window.addEventListener("sachplus:order-created", loadSlots);
+    window.addEventListener("sachplus:order-updated", loadSlots);
+    window.addEventListener("sachplus:machines-updated", loadSlots);
+    window.addEventListener("sachplus:auth-changed", handleAuth);
+    window.addEventListener("sachplus:wallet-updated", handleWallet);
+
     return () => {
-      window.removeEventListener('sachplus:order-created', loadSlots);
-      window.removeEventListener('sachplus:order-updated', loadSlots);
-      window.removeEventListener('sachplus:machines-updated', loadSlots);
+      window.removeEventListener("sachplus:order-created", loadSlots);
+      window.removeEventListener("sachplus:order-updated", loadSlots);
+      window.removeEventListener("sachplus:machines-updated", loadSlots);
+      window.removeEventListener("sachplus:auth-changed", handleAuth);
+      window.removeEventListener("sachplus:wallet-updated", handleWallet);
     };
   }, []);
 
   function getSlotCount(timeRange: string): number {
-    // Convert date from YYYY-MM-DD to DD/MM/YYYY format to match order data
-    const formatDate = (d: string) => {
-      if (!d) return '';
-      if (d.includes('/')) return d; // already DD/MM/YYYY
-      const [y, m, day] = d.split('-');
-      return `${day}/${m}/${y}`;
-    };
-    const today = new Date();
-    const todayStr = `${today.getDate().toString().padStart(2,'0')}/${(today.getMonth()+1).toString().padStart(2,'0')}/${today.getFullYear()}`;
-    const checkDate = date ? formatDate(date) : todayStr;
-    return slotOrders.filter(o => {
-      return o.pickupDate === checkDate && o.pickupTime === timeRange;
+    const checkDate = normalizeDate(date) || normalizeDate(new Date().toISOString().split("T")[0]);
+    return slotOrders.filter((o) => {
+      const orderDate = normalizeDate(o.pickupDate);
+      return orderDate === checkDate && o.pickupTime === timeRange;
     }).length;
   }
 
@@ -263,10 +290,10 @@ function BookingContent() {
     }
   }, [availableVouchers]);
 
-  // Tự động cập nhật lại mức giảm khi giá trị đơn hàng thay đổi (chọn dịch vụ, thêm đồ uống...)
+  // Tự động cập nhật lại mức giảm khi giá trị đơn hàng hoặc khung giờ thay đổi
   useEffect(() => {
     if (appliedVoucher) {
-      const res = validateVoucher(appliedVoucher.code, subtotal);
+      const res = validateVoucher(appliedVoucher.code, subtotal, new Date(), time, date);
       if (res.valid) {
         setDiscountAmount(res.discountAmount);
       } else {
@@ -274,7 +301,7 @@ function BookingContent() {
         setDiscountAmount(0);
       }
     }
-  }, [subtotal]);
+  }, [subtotal, time, date]);
 
   const handleApplyVoucher = (codeToApply?: string) => {
     const target = (codeToApply || voucherInput).trim().toUpperCase();
@@ -282,7 +309,7 @@ function BookingContent() {
       toast.error("Vui lòng nhập mã ưu đãi.");
       return;
     }
-    const result = validateVoucher(target, subtotal);
+    const result = validateVoucher(target, subtotal, new Date(), time, date);
     if (result.valid && result.voucher) {
       setAppliedVoucher(result.voucher);
       setDiscountAmount(result.discountAmount);
@@ -303,14 +330,41 @@ function BookingContent() {
   };
 
   const handleCreateOrder = () => {
+    if (currentUser?.role === "admin") {
+      toast.error("Tài khoản Quản trị viên (Admin) không có quyền đặt dịch vụ. Vui lòng chuyển sang tài khoản Cư dân (User)!");
+      return;
+    }
+
     if (!phone.trim()) {
       toast.error("Vui lòng nhập số điện thoại để nhân viên Sạch+ liên hệ xác nhận lấy đồ.");
       setStep(2);
       return;
     }
 
+    if (journey !== "Khách tự mang & tự lấy" && !address.trim()) {
+      toast.error("Vui lòng nhập số căn hộ / tòa nhà tại Vinhomes để shipper đến nhận đồ.");
+      setStep(2);
+      return;
+    }
+
+    const usedSlots = getSlotCount(time);
+    if (usedSlots >= totalWashers) {
+      toast.error(`Khung giờ ${time} ngày ${date.split("-").reverse().join("/")} đã kín công suất máy giặt (${usedSlots}/${totalWashers} máy). Vui lòng chọn khung giờ khác.`);
+      setStep(2);
+      return;
+    }
+
+    if (paymentMethod === "Ví Sạch+") {
+      const bal = getWalletBalance(currentUser?.id);
+      if (bal < total) {
+        toast.error(`Số dư Ví Sạch+ không đủ (${formatVnd(bal)} < ${formatVnd(total)}). Vui lòng nạp thêm ví hoặc chọn phương thức COD/VietQR.`);
+        return;
+      }
+    }
+
     const order = createLaundryOrder({
       service,
+      userId: currentUser?.id,
       pickupDate: date,
       pickupTime: time,
       journey,
@@ -320,10 +374,17 @@ function BookingContent() {
       voucherCode: appliedVoucher?.code,
       discountAmount,
       total,
+      paymentMethod,
+      paymentStatus: paymentMethod === "Ví Sạch+" ? "Đã thanh toán" : "Chờ thanh toán",
       customerName: name || "Cư dân Vinhomes",
       customerPhone: phone,
       customerAddress: address,
     });
+
+    if (paymentMethod === "Ví Sạch+") {
+      deductWalletBalance(total, currentUser?.id, order.id, `Thanh toán đơn giặt #${order.id}`);
+      setWalletBalance(getWalletBalance(currentUser?.id));
+    }
 
     setConfirmedId(order.id);
     toast.success(`Đã tạo đơn #${order.id} thành công!`);
@@ -445,6 +506,43 @@ function BookingContent() {
           ))}
         </div>
       </div>
+
+      {/* Admin Role Notice & Switch Button */}
+      {currentUser?.role === "admin" && (
+        <div className="mb-6 p-4 md:p-5 bg-amber-50 border-2 border-amber-300 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm animate-in fade-in duration-200">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-800 flex items-center justify-center shrink-0 mt-0.5">
+              <ShieldAlert size={22} />
+            </div>
+            <div>
+              <h4 className="text-sm font-bold text-amber-900">
+                Tài khoản Quản trị viên (Admin) không có quyền đặt dịch vụ
+              </h4>
+              <p className="text-xs text-amber-800 mt-0.5 leading-relaxed">
+                Theo quy định phân quyền hệ thống Sạch+, Quản trị viên chỉ có quyền cấu hình, vận hành và quản lý số liệu. Chỉ tài khoản Khách hàng Cư dân (User) mới có quyền đặt dịch vụ và mua hàng.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
+            <button
+              type="button"
+              onClick={() => {
+                switchRole("customer");
+                toast.success("Đã chuyển sang tài khoản Cư dân (User). Bạn có thể đặt lịch ngay!");
+              }}
+              className="w-full sm:w-auto px-4 py-2.5 bg-amber-700 hover:bg-amber-800 text-white font-bold text-xs rounded-lg transition shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <UserCheck size={15} /> Chuyển sang Cư dân (User)
+            </button>
+            <a
+              href="/admin"
+              className="w-full sm:w-auto px-4 py-2.5 bg-white hover:bg-amber-100/60 border border-amber-300 text-amber-900 font-bold text-xs rounded-lg transition text-center"
+            >
+              Về trang Admin
+            </a>
+          </div>
+        </div>
+      )}
 
       {/* Main Form Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -853,6 +951,85 @@ function BookingContent() {
                 )}
               </div>
 
+              {/* Phương thức thanh toán */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-stone-700 block uppercase tracking-wider">
+                  Phương thức thanh toán
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod("Ví Sạch+")}
+                    className={`p-3.5 rounded-lg border text-left transition cursor-pointer flex flex-col justify-between ${
+                      paymentMethod === "Ví Sạch+"
+                        ? "border-[#0284C7] bg-[#E0F2FE]/60 ring-2 ring-[#0284C7]/20 font-bold"
+                        : "border-stone-200 bg-white hover:bg-stone-50"
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-bold text-stone-900 flex items-center gap-1.5">
+                          <Wallet size={15} className="text-[#0284C7]" /> Ví Sạch+ Pay
+                        </span>
+                        <span className="text-[10px] px-1.5 py-0.2 rounded font-extrabold bg-sky-100 text-sky-800">
+                          Khuyên dùng
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-stone-500 font-normal">
+                        Số dư: <strong className="text-stone-800 font-bold">{formatVnd(walletBalance)}</strong>
+                      </p>
+                    </div>
+                    {walletBalance < total && (
+                      <span className="text-[10px] text-rose-600 font-bold block mt-1">
+                        ⚠️ Thiếu {formatVnd(total - walletBalance)}
+                      </span>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod("COD")}
+                    className={`p-3.5 rounded-lg border text-left transition cursor-pointer flex flex-col justify-between ${
+                      paymentMethod === "COD"
+                        ? "border-[#0284C7] bg-[#E0F2FE]/60 ring-2 ring-[#0284C7]/20 font-bold"
+                        : "border-stone-200 bg-white hover:bg-stone-50"
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-bold text-stone-900 flex items-center gap-1.5">
+                          <Coins size={15} className="text-amber-600" /> Tiền mặt (COD)
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-stone-500 font-normal">
+                        Thanh toán trực tiếp khi shipper nhận / giao đồ
+                      </p>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod("VietQR")}
+                    className={`p-3.5 rounded-lg border text-left transition cursor-pointer flex flex-col justify-between ${
+                      paymentMethod === "VietQR"
+                        ? "border-[#0284C7] bg-[#E0F2FE]/60 ring-2 ring-[#0284C7]/20 font-bold"
+                        : "border-stone-200 bg-white hover:bg-stone-50"
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-bold text-stone-900 flex items-center gap-1.5">
+                          <QrCode size={15} className="text-[#0284C7]" /> Chuyển khoản VietQR
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-stone-500 font-normal">
+                        Quét mã VietQR chuyển khoản nhanh khi nhận đồ
+                      </p>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
               {/* Order Recap */}
               <div className="bg-stone-50 rounded-md p-5 border border-stone-200 space-y-3">
                 <h4 className="text-xs font-bold text-stone-800 uppercase tracking-wider">
@@ -881,6 +1058,10 @@ function BookingContent() {
                       <span className="text-stone-900">{address}</span>
                     </div>
                   )}
+                  <div className="flex justify-between">
+                    <span>Thanh toán:</span>
+                    <span className="text-[#0284C7] font-bold">{paymentMethod}</span>
+                  </div>
                   {express && (
                     <div className="flex justify-between text-[#0369A1] font-semibold">
                       <span>Phí {currentExpress.name}:</span>
@@ -914,9 +1095,17 @@ function BookingContent() {
                 <button
                   type="button"
                   onClick={handleCreateOrder}
-                  className="px-8 py-3.5 bg-[#0284C7] hover:bg-[#0284C7] text-white font-bold rounded-md text-sm transition flex items-center gap-2 cursor-pointer shadow-lg hover:shadow-xl"
+                  disabled={currentUser?.role === "admin"}
+                  className={`px-8 py-3.5 font-bold rounded-md text-sm transition flex items-center gap-2 shadow-lg ${
+                    currentUser?.role === "admin"
+                      ? "bg-stone-300 text-stone-500 cursor-not-allowed shadow-none"
+                      : "bg-[#0284C7] hover:bg-[#0369A1] text-white cursor-pointer hover:shadow-xl"
+                  }`}
                 >
-                  <PackageCheck size={18} /> Xác nhận đặt lịch ({formatVnd(total)})
+                  <PackageCheck size={18} />
+                  {currentUser?.role === "admin"
+                    ? "Admin không có quyền đặt dịch vụ"
+                    : `Xác nhận đặt lịch (${formatVnd(total)})`}
                 </button>
               </div>
             </div>

@@ -1,14 +1,34 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Coffee, Minus, Plus, ShoppingBag, Trash2, CheckCircle2, Clock, QrCode, X, Receipt } from "lucide-react";
+import {
+  Coffee,
+  Minus,
+  Plus,
+  ShoppingBag,
+  Trash2,
+  CheckCircle2,
+  Clock,
+  QrCode,
+  X,
+  ShieldAlert,
+  Wallet,
+  ArrowRight,
+} from "lucide-react";
 import { toast } from "sonner";
 import { SiteHeader } from "@/components/sachplus/site-header";
 import { SiteFooter } from "@/components/sachplus/site-footer";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { formatVnd, getCafeMenu, createCafeOrder, type CafeMenuItem } from "@/lib/sachplus-data";
-import { getCurrentUser } from "@/lib/sachplus-auth";
+import {
+  formatVnd,
+  getCafeMenu,
+  createCafeOrder,
+  type CafeMenuItem,
+  getWalletBalance,
+  deductWalletBalance,
+} from "@/lib/sachplus-data";
+import { getCurrentUser, switchRole, type UserProfile } from "@/lib/sachplus-auth";
 
 export default function CafePage() {
   const [menu, setMenu] = useState<CafeMenuItem[]>([]);
@@ -18,20 +38,45 @@ export default function CafePage() {
   const [customerName, setCustomerName] = useState("");
   const [note, setNote] = useState("");
   const [isCartVisible, setIsCartVisible] = useState(false);
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<"counter" | "wallet">("counter");
+  const [walletBalance, setWalletBalance] = useState(0);
   const cartRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     setMenu(getCafeMenu());
     const u = getCurrentUser();
-    if (u) setCustomerName(u.name);
+    setCurrentUser(u);
+    if (u) {
+      setCustomerName(u.name);
+      setWalletBalance(getWalletBalance(u.id));
+    }
 
     const handleMenuUpdate = () => {
       setMenu(getCafeMenu());
     };
 
+    const handleAuth = (e: Event) => {
+      const cu = (e as CustomEvent<UserProfile | null>).detail ?? getCurrentUser();
+      setCurrentUser(cu);
+      if (cu) {
+        setCustomerName(cu.name);
+        setWalletBalance(getWalletBalance(cu.id));
+      }
+    };
+
+    const handleWallet = () => {
+      const cu = getCurrentUser();
+      if (cu) setWalletBalance(getWalletBalance(cu.id));
+    };
+
     window.addEventListener("sachplus:menu-updated", handleMenuUpdate);
+    window.addEventListener("sachplus:auth-changed", handleAuth);
+    window.addEventListener("sachplus:wallet-updated", handleWallet);
     return () => {
       window.removeEventListener("sachplus:menu-updated", handleMenuUpdate);
+      window.removeEventListener("sachplus:auth-changed", handleAuth);
+      window.removeEventListener("sachplus:wallet-updated", handleWallet);
     };
   }, []);
 
@@ -82,16 +127,45 @@ export default function CafePage() {
   } | null>(null);
 
   const order = () => {
+    if (currentUser?.role === "admin") {
+      toast.error("Tài khoản Quản Trị Viên (Admin) không có quyền mua hàng. Vui lòng chuyển sang tài khoản Cư dân!");
+      return;
+    }
     if (!items.length) return;
+
+    const finalTotal = Math.max(0, subtotal - discount);
+
+    if (paymentMethod === "wallet") {
+      if (!currentUser) {
+        toast.error("Vui lòng đăng nhập để thanh toán bằng Ví Sạch+.");
+        return;
+      }
+      if (walletBalance < finalTotal) {
+        toast.error(`Số dư Ví Sạch+ không đủ (${formatVnd(walletBalance)}). Vui lòng chọn thanh toán tại quầy hoặc nạp thêm ví.`);
+        return;
+      }
+    }
+
     const newCafeOrder = createCafeOrder({
       items: items.map((i) => ({ id: i.id, name: i.name, quantity: i.quantity, price: i.price })),
       subtotal,
       discount,
-      total: Math.max(0, subtotal - discount),
+      total: finalTotal,
       mode,
       customerName: customerName || "Cư dân",
-      note: note || "",
+      note: note ? `${note} · [TT: ${paymentMethod === "wallet" ? "Đã trừ Ví Sạch+" : "Thanh toán tại quầy"}]` : `[TT: ${paymentMethod === "wallet" ? "Đã trừ Ví Sạch+" : "Thanh toán tại quầy"}]`,
     });
+
+    if (paymentMethod === "wallet" && currentUser) {
+      deductWalletBalance(
+        finalTotal,
+        currentUser.id,
+        newCafeOrder.id,
+        `Thanh toán đơn Sạch+ Café #${newCafeOrder.id}`
+      );
+      setWalletBalance(getWalletBalance(currentUser.id));
+      toast.success(`Đã thanh toán ${formatVnd(finalTotal)} từ Ví Sạch+ thành công!`);
+    }
 
     setConfirmedOrder({ ...newCafeOrder, note: newCafeOrder.note || "" });
     setCart({});
@@ -101,6 +175,40 @@ export default function CafePage() {
   return (
     <main>
       <SiteHeader active="Sạch+ Café" />
+
+      {/* Admin Permission Warning Banner */}
+      {currentUser?.role === "admin" && (
+        <div className="bg-amber-500/15 border-b border-amber-500/30 px-4 py-3 text-amber-950 backdrop-blur-xs">
+          <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-amber-500 text-white rounded-lg shrink-0">
+                <ShieldAlert size={20} />
+              </div>
+              <div className="text-xs">
+                <strong className="block text-sm font-bold text-amber-900">
+                  CHẾ ĐỘ QUẢN TRỊ VIÊN (ADMIN) — KHÔNG ĐƯỢC PHÉP MUA HÀNG
+                </strong>
+                <span className="text-amber-800">
+                  Theo quy định phân quyền hệ thống, tài khoản Admin chỉ quản trị danh mục/giá bán và vận hành, không được phép đặt đồ uống. Vui lòng chuyển sang tài khoản Cư dân (User) để đặt món.
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
+              <button
+                type="button"
+                onClick={() => {
+                  switchRole("customer");
+                  toast.success("Đã chuyển sang tài khoản Cư dân (User). Giờ bạn có thể đặt món!");
+                  window.location.reload();
+                }}
+                className="w-full sm:w-auto px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-md shadow transition flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                Chuyển sang Cư dân (User) <ArrowRight size={14} />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Hero Café */}
       <section className="subpage-hero cafe-page-hero">
@@ -300,6 +408,41 @@ export default function CafePage() {
                 />
               </label>
 
+              {/* Payment Method Selector */}
+              <div className="my-3 pt-2 border-t border-stone-200">
+                <span className="text-xs font-bold text-[#0284C7] block mb-1.5">Hình thức thanh toán:</span>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod("counter")}
+                    className={`p-2 rounded-lg border text-left text-xs font-semibold transition cursor-pointer ${
+                      paymentMethod === "counter"
+                        ? "border-[#0284C7] bg-sky-50 text-[#0284C7]"
+                        : "border-stone-200 hover:border-stone-300 text-stone-700 bg-white"
+                    }`}
+                  >
+                    <div className="font-bold">Tại quầy / Tiền mặt</div>
+                    <div className="text-[10px] text-stone-500 mt-0.5">Tiền mặt hoặc POS thẻ</div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod("wallet")}
+                    className={`p-2 rounded-lg border text-left text-xs font-semibold transition cursor-pointer ${
+                      paymentMethod === "wallet"
+                        ? "border-[#0284C7] bg-sky-50 text-[#0284C7]"
+                        : "border-stone-200 hover:border-stone-300 text-stone-700 bg-white"
+                    }`}
+                  >
+                    <div className="font-bold flex items-center gap-1">
+                      <Wallet size={13} className="text-[#0284C7]" /> Ví Sạch+ Pay
+                    </div>
+                    <div className="text-[10px] text-emerald-600 font-bold mt-0.5">
+                      Dư: {formatVnd(walletBalance)}
+                    </div>
+                  </button>
+                </div>
+              </div>
+
               <div className="cart-summary">
                 <p>
                   <span>Tạm tính</span>
@@ -317,8 +460,24 @@ export default function CafePage() {
                 </p>
               </div>
 
-              <button className="order-cafe" onClick={order}>
-                Xác nhận đặt món · Phục vụ sau 8 phút
+              {currentUser?.role === "admin" && (
+                <div className="my-2 p-2.5 bg-amber-50 border border-amber-300 rounded-lg text-amber-900 text-xs flex items-start gap-2">
+                  <ShieldAlert size={16} className="text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <strong className="block font-bold">Admin không được phép mua hàng</strong>
+                    <span>Bạn đang đăng nhập tài khoản Quản trị. Vui lòng chuyển sang tài khoản Cư dân (User) để đặt đồ uống.</span>
+                  </div>
+                </div>
+              )}
+
+              <button
+                className={`order-cafe ${currentUser?.role === "admin" ? "opacity-50 cursor-not-allowed bg-stone-400 hover:bg-stone-400" : "cursor-pointer"}`}
+                onClick={order}
+                disabled={currentUser?.role === "admin"}
+              >
+                {currentUser?.role === "admin"
+                  ? "Admin không có quyền đặt món"
+                  : "Xác nhận đặt món · Phục vụ sau 8 phút"}
               </button>
             </>
           )}

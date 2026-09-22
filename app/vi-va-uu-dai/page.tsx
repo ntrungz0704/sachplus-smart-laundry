@@ -3,21 +3,16 @@
 import { useEffect, useState } from "react";
 import {
   ArrowDownLeft,
-  ArrowRight,
   ArrowUpRight,
   Check,
   Copy,
-  CreditCard,
   Droplet,
   Gem,
   Gift,
   Info,
   QrCode,
   Recycle,
-  ShieldCheck,
-  Sparkles,
   Star,
-  Truck,
   Zap,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -31,11 +26,22 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { formatVnd, getWalletBalance, addWalletBalance, getTransactions, addTransaction, getVouchers, getAccumulatedPoints, type Transaction, type VoucherItem } from "@/lib/sachplus-data";
-import { getCurrentUser } from "@/lib/sachplus-auth";
+import {
+  formatVnd,
+  getWalletBalance,
+  addWalletBalance,
+  getTransactions,
+  getVouchers,
+  getAccumulatedPoints,
+  SYSTEM_CONFIG,
+  type Transaction,
+  type VoucherItem,
+} from "@/lib/sachplus-data";
+import { getCurrentUser, type UserProfile } from "@/lib/sachplus-auth";
 
 
 export default function WalletPage() {
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [balance, setBalance] = useState(0);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [vouchers, setVouchers] = useState<VoucherItem[]>([]);
@@ -46,6 +52,7 @@ export default function WalletPage() {
 
   useEffect(() => {
     const user = getCurrentUser();
+    setCurrentUser(user);
     const uid = user?.id;
     setBalance(getWalletBalance(uid));
     setTransactions(getTransactions(uid));
@@ -54,6 +61,7 @@ export default function WalletPage() {
 
     const loadWallet = () => {
       const u = getCurrentUser();
+      setCurrentUser(u);
       setBalance(getWalletBalance(u?.id));
       setTransactions(getTransactions(u?.id));
       setPoints(getAccumulatedPoints());
@@ -62,13 +70,22 @@ export default function WalletPage() {
       setVouchers(getVouchers());
     };
 
+    const handleAuth = (e: Event) => {
+      const u = (e as CustomEvent<UserProfile | null>).detail ?? getCurrentUser();
+      setCurrentUser(u);
+      setBalance(getWalletBalance(u?.id));
+      setTransactions(getTransactions(u?.id));
+    };
+
     window.addEventListener("sachplus:wallet-updated", loadWallet);
     window.addEventListener("sachplus:vouchers-updated", loadVouchers);
     window.addEventListener("sachplus:order-updated", loadWallet);
+    window.addEventListener("sachplus:auth-changed", handleAuth);
     return () => {
       window.removeEventListener("sachplus:wallet-updated", loadWallet);
       window.removeEventListener("sachplus:vouchers-updated", loadVouchers);
       window.removeEventListener("sachplus:order-updated", loadWallet);
+      window.removeEventListener("sachplus:auth-changed", handleAuth);
     };
   }, []);
 
@@ -335,14 +352,15 @@ export default function WalletPage() {
 
           {/* Khung mã QR VietQR — SePay Real */}
           {(() => {
-            const user = getCurrentUser();
-            const txCode = `SP${Date.now().toString().slice(-8)}`;
+            const txCode = `SP${currentUser?.phone ? currentUser.phone.slice(-6) : Date.now().toString().slice(-6)}`;
             const transferContent = `SEVQR NAP ${txCode}`;
+            const qrUrl = `https://qr.sepay.vn/img?acc=${SYSTEM_CONFIG.vietqr.accountNumber}&bank=${SYSTEM_CONFIG.vietqr.bankCode}&amount=${depositAmount}&des=${encodeURIComponent(transferContent)}&template=compact`;
+
             return (
               <div className="p-4 bg-stone-50 border border-stone-200 rounded-md flex flex-col items-center justify-center my-2 text-center">
                 <div className="w-48 h-48 bg-white p-2 border border-stone-200 rounded-md flex items-center justify-center shadow-inner relative">
                   <img
-                    src={`https://qr.sepay.vn/img?acc=108875292318&bank=ICB&amount=${depositAmount}&des=${encodeURIComponent(transferContent)}&template=compact`}
+                    src={qrUrl}
                     alt="Mã VietQR nạp tiền — SePay"
                     className="w-full h-full object-contain"
                     onError={(e) => {
@@ -355,18 +373,18 @@ export default function WalletPage() {
                 <div className="w-full mt-3 space-y-1 text-xs text-left bg-white p-3 rounded-md border border-stone-200 font-mono">
                   <div className="flex justify-between">
                     <span className="text-stone-500">Ngân hàng:</span>
-                    <strong className="text-[#C8102E]">VietinBank (CTG)</strong>
+                    <strong className="text-[#C8102E]">{SYSTEM_CONFIG.vietqr.bankName}</strong>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-stone-500">Số tài khoản:</span>
                     <span className="font-bold flex items-center gap-1">
-                      1088 7529 2318
-                      <Copy size={13} className="cursor-pointer text-[#0369A1]" onClick={() => copyContent("108875292318")} />
+                      {SYSTEM_CONFIG.vietqr.accountNumber}
+                      <Copy size={13} className="cursor-pointer text-[#0369A1]" onClick={() => copyContent(SYSTEM_CONFIG.vietqr.accountNumber)} />
                     </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-stone-500">Chủ TK:</span>
-                    <strong>NGUYEN TRUNG</strong>
+                    <strong>{SYSTEM_CONFIG.vietqr.accountName}</strong>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-stone-500">Số tiền:</span>

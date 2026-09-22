@@ -40,13 +40,11 @@ import {
   getLaundryOrders,
   getOrderComplaints,
   submitOrderComplaint,
-  updateOrderStatus,
   canCustomerCancel,
   cancelOrder,
   DEFAULT_LAUNDRY_ORDERS,
   type LaundryOrder,
   type OrderComplaint,
-  type LaundryStatus,
 } from "@/lib/sachplus-data";
 import { getCurrentUser } from "@/lib/sachplus-auth";
 
@@ -69,7 +67,8 @@ const stages = [
   "Đang giặt",
   "Đang sấy tiệt trùng",
   "QC & Đóng gói",
-  "Đang giao tận cửa",
+  "Đang giao / Chờ nhận",
+  "Bàn giao hoàn tất",
 ];
 
 interface StageVisual {
@@ -84,7 +83,7 @@ interface StageVisual {
 
 const STAGE_VISUALS: Record<number, StageVisual> = {
   0: {
-    step: "Bước 1/7",
+    step: "Bước 1/8",
     badge: "ĐÃ ĐẶT LỊCH",
     title: "Hệ thống xác nhận lịch hẹn thu gom",
     description: "Đơn giặt đã được ghi nhận trên hệ thống Sạch+ Shophouse SH-08. Shipper nội khu chuẩn bị túi giặt chuyên dụng để tới lấy đồ.",
@@ -93,7 +92,7 @@ const STAGE_VISUALS: Record<number, StageVisual> = {
     icon: Clock3,
   },
   1: {
-    step: "Bước 2/7",
+    step: "Bước 2/8",
     badge: "ĐÃ NHẬN TẠI TIỆM / TẬN CỬA",
     title: "Shipper đã nhận đồ & quét mã QR",
     description: "Túi giặt đã niêm phong thẻ QR định danh chống thất lạc đồ. Đang trên xe điện VinFast di chuyển về phòng giặt trung tâm SH-08.",
@@ -102,7 +101,7 @@ const STAGE_VISUALS: Record<number, StageVisual> = {
     icon: QrCode,
   },
   2: {
-    step: "Bước 3/7",
+    step: "Bước 3/8",
     badge: "ĐANG PHÂN LOẠI",
     title: "Phân loại chất liệu vải & màu sắc",
     description: "Kỹ thuật viên tách riêng đồ màu, đồ trắng cao cấp; kiểm tra khuy cúc, khóa kéo và xử lý điểm các vết ố cứng đầu.",
@@ -111,7 +110,7 @@ const STAGE_VISUALS: Record<number, StageVisual> = {
     icon: Shirt,
   },
   3: {
-    step: "Bước 4/7",
+    step: "Bước 4/8",
     badge: "ĐANG GIẶT CHU TRÌNH",
     title: "Lồng giặt Electrolux Professional đảo ly tâm",
     description: "Máy lồng ngang đang xoay đảo liên tục. Nước ấm 40°C kết hợp nước giặt enzyme sinh học khử khuẩn sâu từng sợi vải.",
@@ -120,7 +119,7 @@ const STAGE_VISUALS: Record<number, StageVisual> = {
     icon: WashingMachine,
   },
   4: {
-    step: "Bước 5/7",
+    step: "Bước 5/8",
     badge: "ĐANG SẤY TIỆT TRÙNG",
     title: "Sấy đối lưu nhiệt độ kiểm soát & UV-C",
     description: "Luồng khí ấm 65°C với hệ thống lọc xơ vải HEPA và đèn UV-C diệt khuẩn 99.9%, giữ sợi vải mềm xốp thơm mát.",
@@ -129,7 +128,7 @@ const STAGE_VISUALS: Record<number, StageVisual> = {
     icon: Flame,
   },
   5: {
-    step: "Bước 6/7",
+    step: "Bước 6/8",
     badge: "QC & ĐÓNG GÓI CHỐNG BỤI",
     title: "Kiểm tra chất lượng & Đóng gói thơm tho",
     description: "Kiểm định trực quan 100% từng nếp vải, là ủi phẳng, xịt hương hoa chuông thanh khiết và niêm phong trong bao bì sinh học.",
@@ -138,13 +137,22 @@ const STAGE_VISUALS: Record<number, StageVisual> = {
     icon: Sparkles,
   },
   6: {
-    step: "Bước 7/7",
-    badge: "ĐANG GIAO / HOÀN TẤT",
-    title: "Giao đồ tận tay cư dân tại sảnh / căn hộ",
-    description: "Túi đồ sạch thơm đã sẵn sàng! Shipper nội khu giao tận cửa căn hộ hoặc bàn giao tại quầy Shophouse SH-08.",
+    step: "Bước 7/8",
+    badge: "ĐANG GIAO / CHỜ NHẬN",
+    title: "Túi đồ sạch thơm đang trên đường tới bạn",
+    description: "Shipper nội khu đang di chuyển giao tận cửa căn hộ hoặc túi đồ đã sẵn sàng tại quầy Shophouse SH-08 chờ bạn ghé lấy.",
     image: "https://images.unsplash.com/photo-1526367790999-0150786686a2?w=700&auto=format&fit=crop&q=80",
     animation: "truck",
     icon: Truck,
+  },
+  7: {
+    step: "Bước 8/8",
+    badge: "BÀN GIAO THÀNH CÔNG",
+    title: "Đơn hàng đã hoàn tất trọn vẹn",
+    description: "Quần áo đã được giặt sấy thơm tho và bàn giao an toàn cho quý cư dân. Cảm ơn bạn đã đồng hành cùng Sạch+ Smart Laundry & Café!",
+    image: "https://images.unsplash.com/photo-1582735689369-4fe89db7114c?w=700&auto=format&fit=crop&q=80",
+    animation: "pulse",
+    icon: Sparkles,
   },
 };
 
@@ -212,8 +220,8 @@ export default function OrdersPage() {
       const data = getLaundryOrders();
       const user = getCurrentUser();
       const userOrders = user && user.role === 'customer'
-        ? data.filter(o => o.customerPhone === user.phone || o.customerName?.includes(user.name?.split(' ').pop() || ''))
-        : user ? data : []; // Admin/Staff see all, guest sees nothing
+        ? data.filter(o => (o.userId && o.userId === user.id) || (user.phone && o.customerPhone === user.phone) || (user.name && o.customerName?.includes(user.name?.split(' ').pop() || '')))
+        : data;
       setOrders(userOrders);
       setComplaintList(getOrderComplaints());
 
@@ -267,8 +275,8 @@ export default function OrdersPage() {
   const stageIndex = useMemo(() => {
     if (!selected) return 0;
     const s = selected.status as string;
-    if (s === "Hoàn tất" || s === "Đã giao tận cửa" || s === "Đã giao") return 6;
-    if (s === "Đang giao" || s === "Đang giao hàng") return 6;
+    if (s === "Hoàn tất" || s === "Đã giao tận cửa" || s === "Đã giao") return 7;
+    if (s === "Sẵn sàng lấy tại quầy" || s === "Đang giao" || s === "Đang giao hàng") return 6;
     if (s === "QC & đóng gói" || s === "QC & Đóng gói") return 5;
     if (s === "Đang sấy" || s === "Đang sấy tiệt trùng") return 4;
     if (s === "Đang giặt") return 3;
@@ -633,12 +641,30 @@ export default function OrdersPage() {
                   </div>
                   <div>
                     <span className="text-xs font-bold text-slate-800 block">{selected.service}</span>
-                    <span className="text-[11px] text-slate-500">
+                    <span className="text-[11px] text-slate-500 block">
                       Khối lượng: <b>{selected.weight || "Chưa cân tại quầy"}</b>
                       {selected.machineId && (
                         <span className="text-[#0369A1] font-semibold ml-2">· Máy: {selected.machineId}</span>
                       )}
                     </span>
+                    {(selected.paymentMethod || selected.paymentStatus) && (
+                      <span className="text-[10px] text-slate-500 flex items-center gap-1.5 mt-0.5">
+                        {selected.paymentMethod && <span>PT: <b>{selected.paymentMethod}</b></span>}
+                        {selected.paymentStatus && (
+                          <span
+                            className={`px-1.5 py-0.5 rounded font-bold ${
+                              selected.paymentStatus === "Đã thanh toán"
+                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                : selected.paymentStatus === "Đã hoàn tiền"
+                                ? "bg-purple-50 text-purple-700 border border-purple-200"
+                                : "bg-amber-50 text-amber-700 border border-amber-200"
+                            }`}
+                          >
+                            {selected.paymentStatus}
+                          </span>
+                        )}
+                      </span>
+                    )}
                   </div>
                 </div>
                 <b className="text-sm font-extrabold text-[#0284C7]">{formatVnd(selected.total)}</b>
@@ -665,11 +691,11 @@ export default function OrdersPage() {
                     <div className="flex justify-between text-xs text-slate-600 mb-1">
                       <span className="font-semibold">Tiến trình giặt sấy</span>
                       <span className="font-bold text-[#0284C7]">
-                        {selected.status === "Hoàn tất" ? 100 : Math.round(((stageIndex + 1) / 7) * 100)}%
+                        {selected.status === "Hoàn tất" ? 100 : Math.round(((stageIndex + 1) / 8) * 100)}%
                       </span>
                     </div>
                     <Progress
-                      value={selected.status === "Hoàn tất" ? 100 : ((stageIndex + 1) / 7) * 100}
+                      value={selected.status === "Hoàn tất" ? 100 : ((stageIndex + 1) / 8) * 100}
                       className="h-2 bg-slate-200"
                     />
                   </div>
@@ -896,6 +922,31 @@ export default function OrdersPage() {
                   >
                     <Headphones size={15} /> Báo sự cố hoặc khiếu nại đơn này
                   </button>
+                </div>
+              )}
+
+              {/* Lịch sử khiếu nại của đơn này nếu có */}
+              {complaintList.filter((c) => c.orderId === selected.id).length > 0 && (
+                <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-md text-xs">
+                  <strong className="text-amber-900 block mb-1.5 flex items-center gap-1.5">
+                    <Headphones size={13} className="text-amber-700" /> Hồ sơ khiếu nại đã gửi:
+                  </strong>
+                  <div className="space-y-1.5">
+                    {complaintList
+                      .filter((c) => c.orderId === selected.id)
+                      .map((c) => (
+                        <div key={c.id} className="p-2 bg-white rounded border border-amber-200 text-[11px]">
+                          <div className="flex justify-between items-center mb-0.5">
+                            <span className="font-bold text-amber-950">{c.type}</span>
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800">
+                              {c.status}
+                            </span>
+                          </div>
+                          <p className="text-slate-600">{c.description}</p>
+                          <span className="text-[10px] text-slate-400 mt-1 block">{c.createdAt}</span>
+                        </div>
+                      ))}
+                  </div>
                 </div>
               )}
             </aside>
